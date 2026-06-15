@@ -55,6 +55,8 @@ class ConfigPanel(ctk.CTkFrame):
         return {
             'stealth_mode': self.stealth_var.get(),
             'sync_proxy_locale': self.sync_locale_var.get(),
+            'sync_proxy_timezone': self.sync_timezone_var.get(),
+            'sync_proxy_geolocation': self.sync_geolocation_var.get(),
             'proxy_mode': self.proxy_mode_var.get(),
             'proxy_pool': '' if self._pool_is_placeholder else self.proxy_pool_text.get('1.0', 'end').strip(),
             'rotating_proxy': self.rotating_entry.get().strip(),
@@ -68,6 +70,8 @@ class ConfigPanel(ctk.CTkFrame):
         s = self._settings
         self.stealth_var.set(s.get('stealth_mode', True))
         self.sync_locale_var.set(s.get('sync_proxy_locale', False))
+        self.sync_timezone_var.set(s.get('sync_proxy_timezone', False))
+        self.sync_geolocation_var.set(s.get('sync_proxy_geolocation', False))
         self.proxy_mode_var.set(s.get('proxy_mode', '无代理'))
         self._on_proxy_mode_change(s.get('proxy_mode', '无代理'))
         
@@ -204,6 +208,35 @@ class ConfigPanel(ctk.CTkFrame):
             button_hover_color=COLORS['accent_secondary'],
         )
         self.sync_locale_switch.pack(side='left')
+
+        row2 = ctk.CTkFrame(parent, fg_color='transparent')
+        row2.pack(fill='x', pady=SPACING['pad_xs'])
+
+        self.sync_timezone_var = ctk.BooleanVar(value=False)
+        self.sync_timezone_switch = ctk.CTkSwitch(
+            row2,
+            text='跟随代理设置时区',
+            variable=self.sync_timezone_var,
+            font=FONTS['body'],
+            text_color=COLORS['text_secondary'],
+            progress_color=COLORS['accent_primary'],
+            button_color=COLORS['accent_primary'],
+            button_hover_color=COLORS['accent_secondary'],
+        )
+        self.sync_timezone_switch.pack(side='left', padx=(0, 20))
+
+        self.sync_geolocation_var = ctk.BooleanVar(value=False)
+        self.sync_geolocation_switch = ctk.CTkSwitch(
+            row2,
+            text='跟随代理设置经纬度',
+            variable=self.sync_geolocation_var,
+            font=FONTS['body'],
+            text_color=COLORS['text_secondary'],
+            progress_color=COLORS['accent_primary'],
+            button_color=COLORS['accent_primary'],
+            button_hover_color=COLORS['accent_secondary'],
+        )
+        self.sync_geolocation_switch.pack(side='left')
 
     def _build_proxy_section(self, parent):
         """代理设置：模式选择 + 动态输入区"""
@@ -531,6 +564,8 @@ class ConfigPanel(ctk.CTkFrame):
             proxy=proxy,
             stealth_mode=self.stealth_var.get(),
             sync_proxy_locale=self.sync_locale_var.get(),
+            sync_proxy_timezone=self.sync_timezone_var.get(),
+            sync_proxy_geolocation=self.sync_geolocation_var.get(),
             timeout_minutes=self.timeout_var.get(),
             target_email=email,
             target_password=password,

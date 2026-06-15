@@ -26,6 +26,8 @@ class BrowserConfig:
     stealth_mode: bool = True
     timeout_minutes: int = 30
     sync_proxy_locale: bool = False
+    sync_proxy_timezone: bool = False
+    sync_proxy_geolocation: bool = False
     target_email: Optional[str] = None
     target_password: Optional[str] = None
     email_client_id: Optional[str] = None
@@ -61,6 +63,8 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
             logger.info("未使用代理（直连模式）")
         logger.info(f"隐身模式: {'开启' if config.stealth_mode else '关闭'}")
         logger.info(f"浏览器语言: {'跟随代理' if config.sync_proxy_locale else '锁定中文(zh-CN)'}")
+        logger.info(f"浏览器时区: {'跟随代理' if config.sync_proxy_timezone else '锁定北京时间(Asia/Shanghai)'}")
+        logger.info(f"浏览器地区: {'跟随代理' if config.sync_proxy_geolocation else '锁定国内(北京)'}")
 
     try:
         from cloakbrowser import launch
@@ -85,6 +89,14 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         # 如果不跟随代理（或者没有代理），强制设置为中文
         if not config.sync_proxy_locale:
             launch_kwargs["locale"] = "zh-CN"
+            
+        # 如果不跟随代理时区，强制设置为北京时间
+        if not config.sync_proxy_timezone:
+            launch_kwargs["timezone_id"] = "Asia/Shanghai"
+            
+        # 如果不跟随代理地区，强制设置为北京坐标
+        if not config.sync_proxy_geolocation:
+            launch_kwargs["geolocation"] = {"longitude": 116.4074, "latitude": 39.9042}
             
         browser = launch(**launch_kwargs)
 
