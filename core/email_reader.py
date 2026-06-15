@@ -79,16 +79,19 @@ def read_latest_verification_code(email: str, client_id: str, refresh_token: str
         for folder in folders:
             folder_id = folder.get("id")
             if not folder_id: continue
-            # 过滤发件人并排序，加入5分钟时间限制
+            # 仅在 API 层面过滤时间，发件人在后面 Python 逻辑中过滤以防漏掉 account-noreply 等变体
             params = {
-                "$filter": f"from/emailAddress/address eq 'noreply@notice.xiaomi.com' and receivedDateTime ge {time_limit}",
+                "$filter": f"receivedDateTime ge {time_limit}",
                 "$orderby": "receivedDateTime desc",
-                "$top": 1,
-                "$select": "subject,bodyPreview,body,receivedDateTime"
+                "$top": 5,
+                "$select": "subject,from,receivedDateTime,bodyPreview,body"
             }
             try:
                 payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params=params)
-                messages.extend(payload.get("value", []))
+                for m in payload.get("value", []):
+                    sender = m.get('from', {}).get('emailAddress', {}).get('address', '')
+                    if 'xiaomi.com' in sender.lower():
+                        messages.append(m)
             except Exception:
                 continue
 

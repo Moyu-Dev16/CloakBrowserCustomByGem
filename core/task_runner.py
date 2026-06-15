@@ -168,14 +168,17 @@ class TaskRunner:
             
             self._logger.info("点击选择国家...")
             page.click("#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item")
-            time.sleep(1)
+            
+            search_input_selector = ".mi-region-field__search input"
+            # 等待搜索框真正可见，防止动画期间输入失败
+            page.wait_for_selector(search_input_selector, state="visible", timeout=5000)
             
             self._logger.info("输入国家: 美国...")
-            # 使用更稳定的类名选择器替代易变的 nth-child
-            search_input_selector = ".mi-region-field__search input"
-            page.fill(search_input_selector, "美国")
+            page.click(search_input_selector)
+            page.keyboard.insert_text("美国")
+            # 给下拉列表一点点时间过滤出结果
             time.sleep(0.5)
-            page.press(search_input_selector, "Enter")
+            page.keyboard.press("Enter")
             time.sleep(1)
             
             if config.target_email:
