@@ -179,8 +179,8 @@ class TaskRunner:
             page.click("#rc-tabs-0-tab-register", timeout=15000)
             
             country_box_sel = "#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item"
-            # 等待国家选择框出现，替代固定等待
-            page.wait_for_selector(country_box_sel, state="visible", timeout=5000)
+            # 等待国家选择框出现，针对使用代理网速较慢的情况放宽超时限制
+            page.wait_for_selector(country_box_sel, state="visible", timeout=30000)
             
             self._logger.info("点击选择国家...")
             page.click(country_box_sel)
@@ -188,8 +188,8 @@ class TaskRunner:
             self._logger.info("正在随机选择国家...")
             
             # 确保下拉列表已经展示，并等待国家名字元素出现
-            page.wait_for_selector(".ant-select-dropdown", state="visible", timeout=5000)
-            page.wait_for_selector(".mi-region-field__name", state="visible", timeout=5000)
+            page.wait_for_selector(".ant-select-dropdown", state="visible", timeout=15000)
+            page.wait_for_selector(".mi-region-field__name", state="visible", timeout=15000)
             
             import random
             
