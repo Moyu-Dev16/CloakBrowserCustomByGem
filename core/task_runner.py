@@ -189,11 +189,8 @@ class TaskRunner:
             
             # 预定义主流国家列表 (混合中英文以应对不同语言环境)
             country_list = [
-                "United States", "United Kingdom", "Canada", "Australia", 
-                "Germany", "France", "Japan", "South Korea", "Brazil", 
-                "India", "Indonesia", "Mexico", "Spain", "Italy", "Netherlands",
-                "Sweden", "Switzerland", "Singapore", "New Zealand", "Norway"
-            ]
+                "美国"
+            ] #   "日本", "韩国", "德国", "法国", "英国", "加拿大",
             import random
             random_country = random.choice(country_list)
             self._logger.info(f"随机选择了国家: {random_country}")
