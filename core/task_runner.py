@@ -263,7 +263,7 @@ class TaskRunner:
             self._logger.success("极验探测结束，等待页面状态响应...")
             
             # 轮询检查后续状态 (等待极验飞一会或者等待网络响应)
-            for _ in range(15):
+            for _ in range(30):
                 # 检查是否出现邮箱错误（被注册或格式错误）
                 if page.locator("#mi-form-error-email").is_visible():
                     self._logger.error("该邮箱已注册或无效！")
@@ -272,17 +272,18 @@ class TaskRunner:
                     break
                     
                 # 检查是否成功跳转到“输入邮件验证码”的页面
-                verify_input = page.locator('input[placeholder="请输入邮件验证码"]')
+                # 使用更加稳固的 class 组合选择器，而不是依赖可能被框架伪装的 placeholder 属性
+                verify_input = page.locator('.mi-ticket-field input').first
                 if verify_input.is_visible():
                     self._logger.success("已成功跳转到验证码输入页面！开始读取邮件...")
                     
-                    # 轮询读取邮件（最多尝试 5 次，每次间隔 3 秒）
+                    # 轮询读取邮件（最多尝试 10 次，每次间隔 3 秒，防止部分邮箱服务延迟严重）
                     cfg = config
                     from core.email_reader import read_latest_verification_code
                     import re
                     
                     found_code = None
-                    for __ in range(5):
+                    for __ in range(10):
                         time.sleep(3)
                         self._logger.info("正在查收邮件...")
                         res = read_latest_verification_code(cfg.target_email, cfg.email_client_id, cfg.email_refresh_token, self._logger)
