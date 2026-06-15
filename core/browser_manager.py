@@ -25,6 +25,7 @@ class BrowserConfig:
     proxy: Optional[str] = None
     stealth_mode: bool = True
     timeout_minutes: int = 30
+    sync_proxy_locale: bool = False
     target_email: Optional[str] = None
     target_password: Optional[str] = None
     email_client_id: Optional[str] = None
@@ -59,6 +60,7 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         else:
             logger.info("未使用代理（直连模式）")
         logger.info(f"隐身模式: {'开启' if config.stealth_mode else '关闭'}")
+        logger.info(f"浏览器语言: {'跟随代理' if config.sync_proxy_locale else '锁定中文(zh-CN)'}")
 
     try:
         from cloakbrowser import launch
@@ -73,12 +75,18 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         # - headless: 隐身模式下使用有头浏览器 (False)
         # - humanize: 隐身模式下启用人类行为模拟
         # - geoip: 使用代理时启用 GeoIP 匹配（使浏览器指纹与代理IP地理位置一致）
-        browser = launch(
-            proxy=config.proxy,
-            headless=False,
-            humanize=config.stealth_mode,
-            geoip=True if config.proxy else False,
-        )
+        launch_kwargs = {
+            "proxy": config.proxy,
+            "headless": False,
+            "humanize": config.stealth_mode,
+            "geoip": True if config.proxy else False,
+        }
+        
+        # 如果不跟随代理（或者没有代理），强制设置为中文
+        if not config.sync_proxy_locale:
+            launch_kwargs["locale"] = "zh-CN"
+            
+        browser = launch(**launch_kwargs)
 
         if logger:
             logger.info("CloakBrowser 启动成功")
