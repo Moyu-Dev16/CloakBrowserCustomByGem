@@ -81,55 +81,42 @@ def _get_distance(bg_img: np.ndarray, slice_img: np.ndarray) -> int:
         
     return distance
 
-def _generate_bionic_tracks(distance: int) -> list:
+def _perform_bionic_drag(page: Page, start_x: float, start_y: float, distance: int):
     """
-    生成仿生拖动轨迹（贝塞尔/加减速）。
-    分为三段：加速、减速、微调回撤。
+    使用 Playwright 原生的 steps 参数执行分段平滑拖拽。
+    避免 Python time.sleep 导致的卡顿和极验风控拦截。
+    分为四段：加速、减速超调、回撤、微调稳定。
     """
-    tracks = []
-    current = 0
     # 稍微超过目标距离，模拟人类滑过头
     overshoot = random.randint(10, 20)
-    target = distance + overshoot
+    target_x = start_x + distance
+    max_x = target_x + overshoot
     
-    t = 0.2
-    v = 0
+    page.mouse.down()
+    page.wait_for_timeout(random.randint(100, 200)) # 按下后停顿
     
-    # 加减速模拟
-    while current < target:
-        # 前半段加速度大，后半段加速度小（甚至为负，减速）
-        if current < target * 4 / 5:
-            a = random.randint(20, 50)
-        else:
-            a = -random.randint(30, 50)
-            
-        v0 = v
-        v = v0 + a * t
-        move = v0 * t + 0.5 * a * (t ** 2)
-        
-        if move < 1:
-            move = random.randint(1, 3)
-            
-        current += move
-        if current > target:
-            current = target
-            
-        tracks.append(round(move))
-        
-    # 回撤那超出的一部分
-    for _ in range(overshoot):
-        tracks.append(-1)
-        
-    # 确保最终总和绝对等于 distance
-    diff = sum(tracks) - distance
-    if diff > 0:
-        for _ in range(diff):
-            tracks.append(-1)
-    elif diff < 0:
-        for _ in range(abs(diff)):
-            tracks.append(1)
-            
-    return tracks
+    # 1. 加速段：快速滑到距离的 60%-70%
+    mid_x1 = start_x + distance * random.uniform(0.6, 0.7)
+    mid_y1 = start_y + random.randint(-2, 2)
+    # steps 决定了这中间插入多少个微小的平滑鼠标事件 (无需 Python sleep)
+    page.mouse.move(mid_x1, mid_y1, steps=random.randint(15, 25))
+    page.wait_for_timeout(random.randint(20, 50))
+    
+    # 2. 减速段：慢慢滑过头 (overshoot)
+    mid_y2 = mid_y1 + random.randint(-2, 2)
+    page.mouse.move(max_x, mid_y2, steps=random.randint(25, 40))
+    page.wait_for_timeout(random.randint(100, 150))
+    
+    # 3. 回拨段：慢速拉回到真正的目标点
+    mid_y3 = mid_y2 + random.randint(-1, 1)
+    page.mouse.move(target_x, mid_y3, steps=random.randint(15, 25))
+    page.wait_for_timeout(random.randint(50, 100))
+    
+    # 4. 微调：极其缓慢地锁定位置
+    page.mouse.move(target_x, start_y, steps=random.randint(5, 10))
+    page.wait_for_timeout(random.randint(300, 500)) # 松开前停顿，展示“稳定”特征
+    
+    page.mouse.up()
 
 def solve_geetest_slider(page: Page, logger=None) -> bool:
     """
@@ -181,25 +168,9 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
         # 将鼠标移动到滑块上
         page.mouse.move(start_x, start_y)
         time.sleep(random.uniform(0.1, 0.3))
-        page.mouse.down()
         
-        # 生成仿生轨迹并拖动
-        tracks = _generate_bionic_tracks(distance)
-        current_x = start_x
-        current_y = start_y
-        
-        log(f"生成仿生轨迹点数: {len(tracks)}，开始拖拽...")
-        for x_move in tracks:
-            current_x += x_move
-            # Y轴加入极其微弱的随机抖动
-            current_y += random.choice([-1, 0, 1]) * random.random()
-            page.mouse.move(current_x, current_y)
-            # 极快的间隔时间模拟人手
-            time.sleep(random.uniform(0.01, 0.03))
-            
-        # 拖拽到目标点后，停顿一下再松开（非常关键的拟人特征）
-        time.sleep(random.uniform(0.4, 0.7))
-        page.mouse.up()
+        log(f"开始执行原生的顺滑拖拽轨迹...")
+        _perform_bionic_drag(page, start_x, start_y, distance)
         
         # 等待极验验证请求飞一会
         time.sleep(2)
