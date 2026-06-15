@@ -86,25 +86,29 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
             "geoip": True if config.proxy else False,
         }
         
-        # 如果不跟随代理（或者没有代理），强制设置为中文
-        if not config.sync_proxy_locale:
-            launch_kwargs["locale"] = "zh-CN"
-            
-        # 如果不跟随代理时区，强制设置为北京时间
-        if not config.sync_proxy_timezone:
-            launch_kwargs["timezone_id"] = "Asia/Shanghai"
-            
-        # 如果不跟随代理地区，强制设置为北京坐标
-        if not config.sync_proxy_geolocation:
-            launch_kwargs["geolocation"] = {"longitude": 116.4074, "latitude": 39.9042}
-            
         browser = launch(**launch_kwargs)
 
         if logger:
             logger.info("CloakBrowser 启动成功")
 
+        # 准备新页面的上下文参数
+        page_kwargs = {}
+        
+        # 如果不跟随代理（或者没有代理），强制设置为中文
+        if not config.sync_proxy_locale:
+            page_kwargs["locale"] = "zh-CN"
+            
+        # 如果不跟随代理时区，强制设置为北京时间
+        if not config.sync_proxy_timezone:
+            page_kwargs["timezone_id"] = "Asia/Shanghai"
+            
+        # 如果不跟随代理地区，强制设置为北京坐标
+        if not config.sync_proxy_geolocation:
+            page_kwargs["geolocation"] = {"longitude": 116.4074, "latitude": 39.9042}
+            page_kwargs["permissions"] = ["geolocation"]
+
         # 创建新页面
-        page = browser.new_page()
+        page = browser.new_page(**page_kwargs)
         if logger:
             logger.info("新页面已创建")
 
