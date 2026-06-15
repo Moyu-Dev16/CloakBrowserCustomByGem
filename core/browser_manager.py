@@ -21,7 +21,7 @@ class BrowserConfig:
         stealth_mode: 隐身模式，启用时 headless=False 且 humanize=True
         timeout_minutes: 任务超时时间（分钟），超时后自动关闭浏览器
     """
-    target_url: str = 'https://global.account.xiaomi.com/'
+    target_url: str = 'https://platform.xiaomimimo.com?ref='
     proxy: Optional[str] = None
     stealth_mode: bool = True
     timeout_minutes: int = 30

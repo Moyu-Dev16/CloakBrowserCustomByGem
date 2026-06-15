@@ -345,7 +345,7 @@ class ConfigPanel(ctk.CTkFrame):
             corner_radius=8,
             height=36,
         )
-        self.target_entry.insert(0, 'https://global.account.xiaomi.com/')
+        self.target_entry.insert(0, 'https://platform.xiaomimimo.com?ref=')
         self.target_entry.pack(fill='x', pady=SPACING['pad_sm'])
 
     def _build_timeout_section(self, parent):
@@ -513,7 +513,7 @@ class ConfigPanel(ctk.CTkFrame):
                     email, password, client_id, refresh_token = parts[0].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip()
 
         return BrowserConfig(
-            target_url=self.target_entry.get().strip() or 'https://global.account.xiaomi.com/',
+            target_url=self.target_entry.get().strip() or 'https://platform.xiaomimimo.com?ref=',
             proxy=proxy,
             stealth_mode=self.stealth_var.get(),
             timeout_minutes=self.timeout_var.get(),
