@@ -46,6 +46,7 @@ class App(ctk.CTk):
             self,
             on_start=self._on_start,
             on_stop=self._on_stop,
+            on_test_env=self._on_test_env,
         )
         self.config_panel.pack(
             side='left',
@@ -124,6 +125,47 @@ class App(ctk.CTk):
             self.logger.info('正在停止任务...')
             self._manual_stop = True # 标记为手动停止
             self.task_runner.stop()
+
+    def _on_test_env(self):
+        """处理环境测试按钮点击"""
+        if self.task_runner.is_running:
+            return
+
+        config = self.config_panel.get_config()
+        self.config_panel.set_running_state(True)
+        self.log_panel.clear_display()
+        self.logger.start_session()
+        self.logger.info("启动环境测试...")
+        
+        def test_thread():
+            import time
+            from core.browser_manager import launch_browser, close_browser
+            
+            # 强制修改目标地址和超时
+            config.target_url = "https://www.todetect.cn/"
+            config.timeout_minutes = 10 
+            
+            browser, page = launch_browser(config, self.logger)
+            if browser and page:
+                self.logger.success("✅ 测试浏览器已打开！")
+                self.logger.info("你可以自由查看本站点的环境伪装检测结果。")
+                self.logger.warning("注意：测试窗口将在 10 分钟后自动关闭，或者你可以手动将其关闭。")
+                try:
+                    # 等待10分钟或直到浏览器被手动关闭
+                    page.wait_for_timeout(600000)
+                except Exception:
+                    pass
+                self.logger.info("正在关闭测试浏览器...")
+                close_browser(browser, self.logger)
+            else:
+                self.logger.error("测试浏览器启动失败")
+                
+            self.after(0, lambda: self.config_panel.set_running_state(False))
+            self.after(0, lambda: self.logger.info("环境测试结束"))
+            self.after(0, self.logger.close_session)
+            
+        import threading
+        threading.Thread(target=test_thread, daemon=True).start()
 
     # ── 回调：来自 TaskLogger（可能从后台线程调用）──────────
     def _on_log(self, level: str, message: str):

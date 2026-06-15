@@ -14,7 +14,7 @@ class ConfigPanel(ctk.CTkFrame):
 
     PANEL_WIDTH = 380
 
-    def __init__(self, master, on_start=None, on_stop=None, **kwargs):
+    def __init__(self, master, on_start=None, on_stop=None, on_test_env=None, **kwargs):
         super().__init__(
             master,
             width=self.PANEL_WIDTH,
@@ -29,6 +29,7 @@ class ConfigPanel(ctk.CTkFrame):
 
         self._on_start = on_start
         self._on_stop = on_stop
+        self._on_test_env = on_test_env
         self._is_running = False
 
         # 加载本地配置
@@ -443,6 +444,21 @@ class ConfigPanel(ctk.CTkFrame):
         )
         self.action_btn.pack(fill='x', pady=SPACING['pad_sm'])
 
+        self.test_btn = ctk.CTkButton(
+            parent,
+            text='🔍  测试浏览器环境',
+            font=FONTS['body'],
+            height=36,
+            corner_radius=8,
+            fg_color=COLORS['bg_input'],
+            hover_color=COLORS['hover'],
+            text_color=COLORS['text_primary'],
+            border_width=1,
+            border_color=COLORS['border'],
+            command=self._handle_test_env,
+        )
+        self.test_btn.pack(fill='x', pady=(0, SPACING['pad_sm']))
+
     # ── 事件处理 ─────────────────────────────────────────────
     def _on_proxy_mode_change(self, mode: str):
         """切换代理模式时显示/隐藏对应的输入区域"""
@@ -497,10 +513,17 @@ class ConfigPanel(ctk.CTkFrame):
             if self._on_stop:
                 self._on_stop()
         else:
-            if self._on_start:
-                self._on_start()
+            if callable(self._on_start):
+                self._on_start(self.get_config())
+                
+    def _handle_test_env(self):
+        """触发环境测试事件"""
+        if self._is_running:
+            return
+        if callable(self._on_test_env):
+            self._on_test_env()
 
-    # ── 公共方法 ─────────────────────────────────────────────
+    # ── 对外接口 ─────────────────────────────────────────────
     def get_config(self) -> BrowserConfig:
         """
         读取面板中所有设置，生成 BrowserConfig。
@@ -601,7 +624,7 @@ class ConfigPanel(ctk.CTkFrame):
 
         if is_running:
             self.action_btn.configure(
-                text='■  停止任务',
+                text='⏹  停止任务',
                 fg_color=COLORS['error'],
                 hover_color='#c0392b',
             )
@@ -620,3 +643,4 @@ class ConfigPanel(ctk.CTkFrame):
         self.email_pool_text.configure(state=state)
         self.target_entry.configure(state=state)
         self.timeout_slider.configure(state=state)
+        self.test_btn.configure(state=state)
