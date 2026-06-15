@@ -83,8 +83,8 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         if logger:
             logger.info("新页面已创建")
 
-        # 导航到目标URL
-        page.goto(config.target_url)
+        # 导航到目标URL，设置 60 秒超时（轮转代理可能较慢）
+        page.goto(config.target_url, timeout=60000)
         if logger:
             logger.success(f"已导航到: {config.target_url}")
 

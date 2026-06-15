@@ -15,7 +15,7 @@ PROXY_MODES = {
 }
 
 # 用于验证代理连通性的测试URL
-_TEST_URL = "http://httpbin.org/ip"
+_TEST_URL = "https://httpbin.org/ip"
 
 
 def validate_proxy(proxy_url: str, timeout: int = 10) -> Tuple[bool, str]:
