@@ -191,20 +191,36 @@ class TaskRunner:
                 self._logger.info(f"👉 当前任务邮箱: {config.target_email}")
                 self._logger.info(f"👉 当前生成密码: {config.target_password}")
 
+                def js_assign(selector, value):
+                    # 通过原生 setter 绕过 React 绑定并触发事件
+                    js_code = f"""() => {{
+                        const el = document.querySelector('{selector}');
+                        if (el) {{
+                            const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                            setter.call(el, '{value}');
+                            el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                            el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        }}
+                    }}"""
+                    page.evaluate(js_code)
+
                 self._logger.info("输入邮箱...")
                 email_sel = "#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input"
-                page.click(email_sel)
-                page.keyboard.insert_text(config.target_email)
+                # page.click(email_sel)
+                # page.keyboard.insert_text(config.target_email)
+                js_assign(email_sel, config.target_email)
                 
                 self._logger.info("输入密码...")
                 pw1_sel = "#rc-tabs-0-panel-register > form > div:nth-child(3) > div > div.mi-form-field__control > div > input"
-                page.click(pw1_sel)
-                page.keyboard.insert_text(config.target_password)
+                # page.click(pw1_sel)
+                # page.keyboard.insert_text(config.target_password)
+                js_assign(pw1_sel, config.target_password)
                 
                 self._logger.info("确认密码...")
                 pw2_sel = "#rc-tabs-0-panel-register > form > div:nth-child(4) > div > div.mi-form-field__control > div > input"
-                page.click(pw2_sel)
-                page.keyboard.insert_text(config.target_password)
+                # page.click(pw2_sel)
+                # page.keyboard.insert_text(config.target_password)
+                js_assign(pw2_sel, config.target_password)
             else:
                 self._logger.warning("未配置邮箱池，跳过账号密码填写。")
             
