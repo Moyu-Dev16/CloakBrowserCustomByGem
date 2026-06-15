@@ -91,6 +91,12 @@ class App(ctk.CTk):
             messagebox.showwarning('配置错误', '请填写目标地址。')
             return
 
+        # 检查邀请码
+        invite_code = self.log_panel.invite_entry.get().strip()
+        if not invite_code:
+            if not messagebox.askyesno('未填写邀请码', '邀请码未填写，是否继续？'):
+                return
+
         # 直接启动任务，代理验证由 TaskRunner 内部处理
         self._do_start(config)
 
@@ -113,6 +119,7 @@ class App(ctk.CTk):
         """处理停止按钮点击"""
         if self.task_runner.is_running:
             self.logger.info('正在停止任务...')
+            self._manual_stop = True # 标记为手动停止
             self.task_runner.stop()
 
     # ── 回调：来自 TaskLogger（可能从后台线程调用）──────────
@@ -128,15 +135,29 @@ class App(ctk.CTk):
         running_states = ('validating_proxy', 'launching_browser', 'running')
         if status in running_states:
             self.after(0, lambda: self.config_panel.set_running_state(True))
+            self._manual_stop = False # 每次运行重置标志
         else:
             self.after(0, lambda: self.config_panel.set_running_state(False))
             # 任务结束时：关闭日志会话，刷新日志统计
             self.after(0, self._on_task_finished)
 
     def _on_task_finished(self):
-        """任务结束后的清理工作"""
+        """任务结束后的清理工作，并检查是否继续下一个任务"""
         self.logger.stop_session()
         self.log_panel.update_log_info()
+        
+        # 判断是否需要自动执行下一个任务
+        # 我们只在正常停止（status = 'stopped'）且并非手动终止时才自动开始
+        if getattr(self, '_manual_stop', False):
+            self.logger.warning("任务已被手动终止，取消自动执行下一轮。")
+            return
+            
+        config = self.config_panel.get_config()
+        if config.target_email: # 说明邮箱池里还有没跑的邮箱
+            self.logger.info("检测到邮箱池还有剩余账号，将在 5 秒后自动启动下一轮任务...")
+            self.after(5000, self._on_start)
+        else:
+            self.logger.success("邮箱池已空，所有批处理任务执行完毕！")
 
     def _on_countdown(self, remaining: int):
         """倒计时回调 - 线程安全"""

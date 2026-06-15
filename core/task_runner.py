@@ -297,9 +297,51 @@ class TaskRunner:
                         self._logger.success(f"自动填入验证码: {found_code}")
                         verify_input.fill(found_code)
                         time.sleep(0.5)
-                        
                         self._logger.info("点击提交验证码...")
                         page.click("#rc-tabs-0-panel-register > form > button")
+                        
+                        # ================= 新增流程：后续协议与创建 API Key =================
+                        self._logger.info("等待跳转进入控制台...")
+                        try:
+                            # 监控是否成功跳入了主控制台界面
+                            page.wait_for_url("**/console/**", timeout=15000)
+                            self._logger.success("注册成功！已进入主控制台。")
+                            
+                            # 查找并勾选“同意协议”复选框
+                            agree_checkbox = page.locator("input[type='checkbox'].ant-checkbox-input")
+                            if agree_checkbox.is_visible(timeout=5000):
+                                self._logger.info("勾选使用协议...")
+                                agree_checkbox.click(force=True)
+                                
+                                # 点击确定按钮
+                                confirm_btn = page.locator("button.flex-1.max-w-\\[50\\%\\].bg-\\[var\\(--color-primary\\)\\]")
+                                if confirm_btn.is_visible(timeout=2000):
+                                    self._logger.info("点击确定按钮...")
+                                    confirm_btn.click()
+                                    time.sleep(1) # 等待弹窗消失
+                            
+                            # 获取主界面的邀请码（如果没有，可以用默认或者空）
+                            # 触发 _do_create_apikey 进行全自动收尾
+                            self._logger.info("开始执行全自动 API Key 创建闭环...")
+                            self._do_create_apikey()
+                            
+                            # 剔除已使用的邮箱 (触发回调刷新界面)
+                            if self._on_bind_success:
+                                self._logger.info("正在将当前邮箱移出队列...")
+                                self._on_bind_success()
+                                
+                            self._logger.success("本轮账号自动化流程已彻底完结！准备执行下一轮任务。")
+                            
+                            # ======= 核心循环：关闭当前浏览器并停止本线程，通知 GUI 开启下一个任务 =======
+                            # 这里我们采取的策略是抛出一个特定的异常或者直接停止当前 TaskRunner
+                            # 并在 GUI 监听到停止后自动从池子取出下一个邮箱启动。
+                            # 为了简化，我们可以先停掉当前 TaskRunner
+                            self.stop()
+                            return
+                            
+                        except Exception as e:
+                            self._logger.error(f"后续流程执行失败或超时未跳转: {e}")
+                            
                     else:
                         self._logger.error("多次尝试后未能读取到验证码邮件！")
                     break

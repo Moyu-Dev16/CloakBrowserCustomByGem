@@ -447,8 +447,38 @@ class ConfigPanel(ctk.CTkFrame):
         email_text = '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
         if email_text:
             lines = [l.strip() for l in email_text.split('\n') if l.strip()]
-            if lines:
-                parts = lines[0].split('----')
+            
+            # 读取成功列表，剔除已经成功的邮箱
+            import os
+            success_emails = set()
+            if os.path.exists('成功.txt'):
+                try:
+                    with open('成功.txt', 'r', encoding='utf-8') as f:
+                        for line in f:
+                            parts = line.strip().split('----')
+                            if parts:
+                                success_emails.add(parts[0].strip())
+                except Exception:
+                    pass
+                    
+            valid_lines = []
+            for line in lines:
+                parts = line.split('----')
+                if parts and parts[0].strip() not in success_emails:
+                    valid_lines.append(line)
+                    
+            # 如果存在已经被剔除的邮箱，同步更新回界面
+            if len(valid_lines) != len(lines):
+                self.email_pool_text.delete('1.0', 'end')
+                new_text = '\n'.join(valid_lines)
+                if new_text:
+                    self.email_pool_text.insert('1.0', new_text)
+                else:
+                    self._email_focus_out() # 变回占位符
+                self._save_settings_dict()
+                
+            if valid_lines:
+                parts = valid_lines[0].split('----')
                 if len(parts) >= 4:
                     email, password, client_id, refresh_token = parts[0].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip()
 
