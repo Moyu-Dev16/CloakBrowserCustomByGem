@@ -162,14 +162,22 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
     except:
         return False # 未弹出验证码，直接通过
         
-    log("检测到极验滑块验证码，启动本地视觉引擎...")
-    time.sleep(1) # 等待画布渲染
+    log("检测到极验滑块验证码，启动本地视觉引擎并等待加载完成...")
+    
+    # 获取图像（使用多重备用选择器）
+    bg_selectors = [".geetest_canvas_bg", ".geetest_bg", ".geetest_item_bg"]
+    slice_selectors = [".geetest_canvas_slice", ".geetest_slice_bg", ".geetest_slice"]
+    
+    # 动态等待 Geetest 的 loading 遮罩消失（由于挂代理网络可能很慢，最高等15秒）
+    try:
+        page.wait_for_selector(".geetest_panel_loading", state="hidden", timeout=15000)
+        page.wait_for_selector(", ".join(bg_selectors), state="visible", timeout=10000)
+    except Exception as e:
+        log(f"等待极验渲染超时，可能网络卡顿: {e}")
+        
+    time.sleep(1) # 再预留1秒给本地浏览器渲染画布
     
     try:
-        # 获取图像（使用多重备用选择器）
-        bg_selectors = [".geetest_canvas_bg", ".geetest_bg", ".geetest_item_bg"]
-        slice_selectors = [".geetest_canvas_slice", ".geetest_slice_bg", ".geetest_slice"]
-        
         bg_img = _get_canvas_image(page, bg_selectors)
         slice_img = _get_canvas_image(page, slice_selectors)
         
