@@ -253,7 +253,50 @@ class TaskRunner:
             from core.captcha import solve_geetest_slider
             solve_geetest_slider(page, self._logger)
             
-            self._logger.success("自动注册表单填写并检测完成，等待后续验证逻辑...")
+            self._logger.success("极验探测结束，等待页面状态响应...")
+            
+            # 轮询检查后续状态 (等待极验飞一会或者等待网络响应)
+            for _ in range(15):
+                # 检查是否出现邮箱错误（被注册或格式错误）
+                if page.locator("#mi-form-error-email").is_visible():
+                    self._logger.error("该邮箱已注册或无效！")
+                    # self.stop()  # 退出此任务关闭浏览器 (根据要求先注释掉)
+                    # return
+                    break
+                    
+                # 检查是否成功跳转到“输入邮件验证码”的页面
+                verify_input = page.locator('input[placeholder="请输入邮件验证码"]')
+                if verify_input.is_visible():
+                    self._logger.success("已成功跳转到验证码输入页面！开始读取邮件...")
+                    
+                    # 轮询读取邮件（最多尝试 5 次，每次间隔 3 秒）
+                    cfg = config
+                    from core.email_reader import read_latest_verification_code
+                    import re
+                    
+                    found_code = None
+                    for __ in range(5):
+                        time.sleep(3)
+                        self._logger.info("正在查收邮件...")
+                        res = read_latest_verification_code(cfg.target_email, cfg.email_client_id, cfg.email_refresh_token, self._logger)
+                        if "验证码：" in res:
+                            match = re.search(r'\d{6}', res)
+                            if match:
+                                found_code = match.group()
+                                break
+                    
+                    if found_code:
+                        self._logger.success(f"自动填入验证码: {found_code}")
+                        verify_input.fill(found_code)
+                        time.sleep(0.5)
+                        
+                        self._logger.info("点击提交验证码...")
+                        page.click("#rc-tabs-0-panel-register > form > button")
+                    else:
+                        self._logger.error("多次尝试后未能读取到验证码邮件！")
+                    break
+                    
+                time.sleep(1)
             
         except Exception as e:
             self._logger.error(f"自动化操作失败: {e}", exc_info=True)
