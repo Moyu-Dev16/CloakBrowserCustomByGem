@@ -16,9 +16,13 @@ def load_config() -> dict:
         settings['proxy_mode'] = sec.get('proxy_mode', fallback='无代理')
         settings['proxy_pool'] = sec.get('proxy_pool', fallback='').replace('|#|', '\n')
         settings['rotating_proxy'] = sec.get('rotating_proxy', fallback='')
+        settings['proxy_api_url'] = sec.get('proxy_api_url', fallback='')
         settings['target_url'] = sec.get('target_url', fallback='https://global.account.xiaomi.com/')
         settings['timeout_minutes'] = sec.getint('timeout_minutes', fallback=30)
         settings['email_pool'] = sec.get('email_pool', fallback='').replace('|#|', '\n')
+        settings['sync_proxy_locale'] = sec.getboolean('sync_proxy_locale', fallback=False)
+        settings['sync_proxy_timezone'] = sec.getboolean('sync_proxy_timezone', fallback=False)
+        settings['sync_proxy_geolocation'] = sec.getboolean('sync_proxy_geolocation', fallback=False)
     else:
         # 默认值
         settings = {
@@ -26,9 +30,13 @@ def load_config() -> dict:
             'proxy_mode': '无代理',
             'proxy_pool': '',
             'rotating_proxy': '',
+            'proxy_api_url': '',
             'target_url': 'https://global.account.xiaomi.com/',
             'timeout_minutes': 30,
-            'email_pool': ''
+            'email_pool': '',
+            'sync_proxy_locale': False,
+            'sync_proxy_timezone': False,
+            'sync_proxy_geolocation': False
         }
     return settings
 
@@ -42,9 +50,13 @@ def save_config(settings: dict):
     sec['proxy_mode'] = settings.get('proxy_mode', '无代理')
     sec['proxy_pool'] = settings.get('proxy_pool', '').replace('\n', '|#|')
     sec['rotating_proxy'] = settings.get('rotating_proxy', '')
+    sec['proxy_api_url'] = settings.get('proxy_api_url', '')
     sec['target_url'] = settings.get('target_url', 'https://global.account.xiaomi.com/')
     sec['timeout_minutes'] = str(settings.get('timeout_minutes', 30))
     sec['email_pool'] = settings.get('email_pool', '').replace('\n', '|#|')
+    sec['sync_proxy_locale'] = str(settings.get('sync_proxy_locale', False))
+    sec['sync_proxy_timezone'] = str(settings.get('sync_proxy_timezone', False))
+    sec['sync_proxy_geolocation'] = str(settings.get('sync_proxy_geolocation', False))
     
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         config.write(f)
