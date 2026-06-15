@@ -307,13 +307,32 @@ class TaskRunner:
             
             # 轮询检查后续状态 (等待极验飞一会或者等待网络响应)
             self._recaptcha_warned = False
-            for _ in range(180): # 放宽到180次，留出充足时间给可能的人工接管
+            for loop_idx in range(180): # 放宽到180次，留出充足时间给可能的人工接管
                 # 检查是否出现邮箱错误（被注册或格式错误）
                 if page.locator("#mi-form-error-email").is_visible():
                     self._logger.error("该邮箱已注册或无效！")
                     self._handle_automation_failure()
                     return
                     
+                # 检查是否有全局 Toast 错误提示 (比如“操作太频繁”、“网络异常”等)
+                toast_error = page.locator(".ant-message-notice-content, .ant-message-custom-content, div[class*='error-message']").first
+                if toast_error.is_visible():
+                    err_text = toast_error.inner_text().strip()
+                    if err_text:
+                        self._logger.error(f"页面弹出错误提示: {err_text}")
+                        # 避免捕捉到无关注入，确保是真的错误再终止
+                        self._handle_automation_failure()
+                        return
+                        
+                # 检查是否有表单内联错误提示
+                inline_error = page.locator(".ant-form-item-explain-error").first
+                if inline_error.is_visible():
+                    err_text = inline_error.inner_text().strip()
+                    if err_text:
+                        self._logger.error(f"表单验证失败: {err_text}")
+                        self._handle_automation_failure()
+                        return
+
                 # 检查是否出现 Google reCAPTCHA (需使用 .first 防止 strict mode 抛错，因为 Google 会同时挂载两个 iframe)
                 if page.locator('iframe[src*="recaptcha"]').first.is_visible() or page.locator('iframe[title*="reCAPTCHA"]').first.is_visible():
                     if not self._recaptcha_warned:
@@ -336,6 +355,22 @@ class TaskRunner:
                     solve_geetest_slider(page, self._logger)
                     self._logger.success("极验重试探测结束，等待响应...")
                     continue
+                    
+                # 如果极验卡在成功状态不消失，尝试点击关闭按钮
+                if loop_idx > 5 and page.locator(".geetest_window, .geetest_panel").is_visible():
+                    try:
+                        page.locator(".geetest_close, .geetest_panel_close").first.click(timeout=1000)
+                    except:
+                        pass
+                        
+                # 如果极验已经彻底消失，但还是在当前页面（没有跳转到验证码页，Next按钮还在），尝试再次点击下一步
+                if loop_idx % 10 == 9:
+                    if not page.locator(".geetest_window, .geetest_panel").is_visible() and page.locator("#rc-tabs-0-panel-register > form > button").is_visible():
+                        self._logger.info("页面未跳转，尝试重新点击下一步...")
+                        try:
+                            page.click("#rc-tabs-0-panel-register > form > button", force=True, timeout=2000)
+                        except:
+                            pass
 
                 # 检查是否成功跳转到“输入邮件验证码”的页面
                 # 使用更加稳固的 class 组合选择器，而不是依赖可能被框架伪装的 placeholder 属性
