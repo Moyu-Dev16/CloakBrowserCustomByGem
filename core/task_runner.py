@@ -185,30 +185,30 @@ class TaskRunner:
             self._logger.info("点击选择国家...")
             page.click(country_box_sel)
             
-            self._logger.info("正在随机选择国家...")
+            self._logger.info("正在随机抽取国家并搜索...")
             
-            # 确保下拉列表已经展示，并等待国家名字元素出现
-            page.wait_for_selector(".ant-select-dropdown", state="visible", timeout=15000)
-            page.wait_for_selector(".mi-region-field__name", state="visible", timeout=15000)
-            
+            # 预定义主流国家列表 (混合中英文以应对不同语言环境)
+            country_list = [
+                "United States", "United Kingdom", "Canada", "Australia", 
+                "Germany", "France", "Japan", "South Korea", "Brazil", 
+                "India", "Indonesia", "Mexico", "Spain", "Italy", "Netherlands",
+                "Sweden", "Switzerland", "Singapore", "New Zealand", "Norway"
+            ]
             import random
+            random_country = random.choice(country_list)
+            self._logger.info(f"随机选择了国家: {random_country}")
             
-            # 获取当前虚拟列表中渲染出来的所有国家选项
-            regions = page.locator(".mi-region-field__name")
-            count = regions.count()
+            search_input_selector = ".mi-region-field__search input"
+            # 等待搜索框真正可见
+            page.wait_for_selector(search_input_selector, state="visible", timeout=15000)
             
-            if count > 0:
-                random_index = random.randint(0, count - 1)
-                random_region = regions.nth(random_index)
-                
-                region_name = random_region.inner_text()
-                self._logger.info(f"随机选择了国家: {region_name}")
-                
-                random_region.scroll_into_view_if_needed()
-                random_region.click()
-            else:
-                self._logger.warning("未找到任何国家选项，跳过选择")
-                page.keyboard.press("Escape")
+            page.click(search_input_selector)
+            # 使用 type 并带有延迟，能更好地触发前端 React 的 onChange 状态更新
+            page.locator(search_input_selector).type(random_country, delay=100)
+            
+            # 稍微等待下拉列表过滤渲染
+            time.sleep(1)
+            page.keyboard.press("Enter")
             
             # 等待国家下拉框消失，代表选择完成，替代硬性的 time.sleep(2)
             try:
@@ -281,12 +281,21 @@ class TaskRunner:
             self._logger.success("极验探测结束，等待页面状态响应...")
             
             # 轮询检查后续状态 (等待极验飞一会或者等待网络响应)
-            for _ in range(40):
+            self._recaptcha_warned = False
+            for _ in range(180): # 放宽到180次，留出充足时间给可能的人工接管
                 # 检查是否出现邮箱错误（被注册或格式错误）
                 if page.locator("#mi-form-error-email").is_visible():
                     self._logger.error("该邮箱已注册或无效！")
                     self._handle_automation_failure()
                     return
+                    
+                # 检查是否出现 Google reCAPTCHA
+                if page.locator('iframe[src*="recaptcha"]').is_visible() or page.locator('iframe[title*="reCAPTCHA"]').is_visible():
+                    if not self._recaptcha_warned:
+                        self._logger.warning("🚨 触发高风控：检测到 Google reCAPTCHA (人机身份验证)！")
+                        self._logger.warning("👉 请立即在浏览器上手动完成拼图/选图验证。程序将暂停等待你操作...")
+                        self._recaptcha_warned = True
+                    # 这里不用 break，继续循环等用户完成验证，完成后页面会自动跳转到验证码输入页
                     
                 # 检查极验是否失败需要重试
                 error_panel = page.locator("div.geetest_panel_error_content")
