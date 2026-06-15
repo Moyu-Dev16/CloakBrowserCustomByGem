@@ -450,7 +450,7 @@ class ConfigPanel(ctk.CTkFrame):
             if lines:
                 parts = lines[0].split('----')
                 if len(parts) >= 4:
-                    email, password, client_id, refresh_token = parts[0], parts[1], parts[2], parts[3]
+                    email, password, client_id, refresh_token = parts[0].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip()
 
         return BrowserConfig(
             target_url=self.target_entry.get().strip() or 'https://global.account.xiaomi.com/',
@@ -462,6 +462,21 @@ class ConfigPanel(ctk.CTkFrame):
             email_client_id=client_id,
             email_refresh_token=refresh_token
         )
+
+    def remove_first_email(self):
+        """移除邮箱池中的第一个邮箱并保存"""
+        email_text = '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
+        if email_text:
+            lines = [l.strip() for l in email_text.split('\n') if l.strip()]
+            if lines:
+                lines.pop(0)
+                self.email_pool_text.delete('1.0', 'end')
+                new_text = '\n'.join(lines)
+                if new_text:
+                    self.email_pool_text.insert('1.0', new_text)
+                else:
+                    self._email_focus_out()
+                self._save_settings_dict()
 
     def set_running_state(self, is_running: bool):
         """

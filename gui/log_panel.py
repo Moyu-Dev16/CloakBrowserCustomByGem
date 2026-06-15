@@ -34,7 +34,7 @@ MAX_LOG_LINES = 200
 class LogPanel(ctk.CTkFrame):
     """右侧日志面板，包含状态栏、日志区域和底部工具栏"""
 
-    def __init__(self, master, on_clear_logs=None, on_fill_invite=None, on_read_email=None, **kwargs):
+    def __init__(self, master, on_clear_logs=None, on_fill_invite=None, on_read_email=None, on_create_apikey=None, **kwargs):
         super().__init__(
             master,
             fg_color=COLORS['bg_card'],
@@ -46,6 +46,7 @@ class LogPanel(ctk.CTkFrame):
         self._on_clear_logs = on_clear_logs
         self._on_fill_invite = on_fill_invite
         self._on_read_email = on_read_email
+        self._on_create_apikey = on_create_apikey
         self._build_ui()
         self.update_log_info()
 
@@ -165,6 +166,20 @@ class LogPanel(ctk.CTkFrame):
         )
         self.read_email_btn.pack(side='left', padx=(0, SPACING['pad_sm']))
 
+        # 创建 API Key 按钮
+        self.create_apikey_btn = ctk.CTkButton(
+            toolbar,
+            text='创建',
+            font=FONTS['small'],
+            width=60,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS['accent_primary'],
+            hover_color=COLORS['accent_secondary'],
+            command=self._handle_create_apikey,
+        )
+        self.create_apikey_btn.pack(side='left', padx=(0, SPACING['pad_sm']))
+
         # 占位推挤
         spacer = ctk.CTkFrame(toolbar, fg_color='transparent')
         spacer.pack(side='left', fill='x', expand=True)
@@ -206,6 +221,10 @@ class LogPanel(ctk.CTkFrame):
     def _handle_read_email(self):
         if self._on_read_email:
             self._on_read_email()
+
+    def _handle_create_apikey(self):
+        if self._on_create_apikey:
+            self._on_create_apikey()
 
     # ── 公共方法 ─────────────────────────────────────────────
     def append_log(self, level: str, message: str):

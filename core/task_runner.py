@@ -52,6 +52,7 @@ class TaskRunner:
         logger,
         on_status_change: Callable = None,
         on_countdown: Callable = None,
+        on_bind_success: Callable = None,
     ):
         """
         初始化任务运行器。
@@ -63,10 +64,12 @@ class TaskRunner:
                             'running', 'timeout', 'stopped', 'error'
             on_countdown: 倒计时回调，签名: callback(remaining_seconds: int)
                 在 running 状态下每秒调用一次
+            on_bind_success: 绑定成功时的回调，用于清理已使用的邮箱
         """
         self._logger = logger
         self._on_status_change = on_status_change
         self._on_countdown = on_countdown
+        self._on_bind_success = on_bind_success
 
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -155,6 +158,13 @@ class TaskRunner:
             self._logger.error("请先启动任务，再读取邮件。")
             return
         self._action_queue.put(('read_email', ()))
+
+    def create_apikey(self):
+        """将创建 API Key 任务推入队列"""
+        if not self.is_running:
+            self._logger.error("请先启动任务，再创建 API Key。")
+            return
+        self._action_queue.put(('create_apikey', ()))
 
     def _execute_automation(self, page, config: BrowserConfig):
         """执行页面自动化操作"""
@@ -277,6 +287,8 @@ class TaskRunner:
             
             body = resp.text()
             self._logger.success(f"绑定请求响应: {resp.status} {body}")
+            if resp.status == 200 and self._on_bind_success:
+                self._on_bind_success()
         except Exception as e:
             self._logger.error(f"绑定邀请码失败: {e}", exc_info=True)
 
@@ -285,18 +297,63 @@ class TaskRunner:
         cfg = self._current_config
         read_latest_verification_code(cfg.target_email, cfg.email_client_id, cfg.email_refresh_token, self._logger)
 
+    def _do_create_apikey(self):
+        try:
+            import urllib.parse
+            
+            # 动态获取 api-platform_ph
+            api_platform_ph = ""
+            cookies = self._page.context.cookies()
+            for cookie in cookies:
+                if cookie['name'] == 'api-platform_ph':
+                    val = cookie['value']
+                    if val.startswith('"') and val.endswith('"'):
+                        val = val[1:-1]
+                    api_platform_ph = urllib.parse.quote(val, safe="")
+                    break
+            
+            if not api_platform_ph:
+                self._logger.warning("未在 Cookie 中找到 api-platform_ph，将使用备用值尝试")
+                api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+                
+            url = f"https://platform.xiaomimimo.com/api/v1/apiKeys?api-platform_ph={api_platform_ph}"
+            email = self._current_config.target_email or "UnknownEmail"
+            self._logger.info(f"正在发送创建 API Key 请求，名称为: {email}")
+            
+            resp = self._page.context.request.post(
+                url,
+                headers={
+                    "origin": "https://platform.xiaomimimo.com",
+                    "referer": "https://platform.xiaomimimo.com/console/api-keys",
+                    "x-timezone": "Asia/Shanghai",
+                    "content-type": "application/json",
+                    "accept": "*/*",
+                    "accept-language": "zh"
+                },
+                data={"apiKeyName": email}
+            )
+            
+            body = resp.text()
+            if resp.ok:
+                resp_json = resp.json()
+                self._logger.success(f"API Key 创建成功: {body}")
+                
+                # 提取 apiKey 并保存到 成功.txt
+                api_key = resp_json.get("data", {}).get("apiKey", "")
+                if api_key:
+                    with open("成功.txt", "a", encoding="utf-8") as f:
+                        f.write(f"{email}----{self._current_config.target_password}----{api_key}\n")
+                    self._logger.success(f"已将结果保存到 成功.txt")
+                else:
+                    self._logger.warning("未能从响应中提取出 apiKey")
+            else:
+                self._logger.error(f"API Key 创建失败，状态码: {resp.status}，响应: {body}")
+        except Exception as e:
+            self._logger.error(f"创建 API Key 异常: {e}", exc_info=True)
+
     def _run(self, config: BrowserConfig):
         """
         内部工作方法：在线程中执行的实际任务逻辑。
-
-        完整流程:
-        1. 验证代理（如果配置了代理）
-        2. 启动浏览器
-        3. 进入倒计时循环，等待超时或停止信号
-        4. 关闭浏览器并清理
-
-        Args:
-            config: BrowserConfig 浏览器配置
         """
         try:
             # ---- 阶段1: 代理验证 ----
@@ -309,8 +366,6 @@ class TaskRunner:
                     self._logger.success(f"代理验证通过: {message}")
                 else:
                     self._logger.error(f"代理验证失败: {message}")
-                    # 代理验证失败不中断任务，继续启动浏览器
-                    # （用户可能知道代理实际可用，或者httpbin不可达但代理本身可用）
                     self._logger.warning("代理验证失败，但仍尝试继续启动浏览器...")
 
                 # 检查是否收到停止信号
@@ -387,7 +442,9 @@ class TaskRunner:
                     if action == 'bind_invite':
                         self._do_bind_invite(*args)
                     elif action == 'read_email':
-                        self._do_read_email(*args)
+                        self._do_read_email()
+                    elif action == 'create_apikey':
+                        self._do_create_apikey()
 
                 # 每秒检查一次
                 time.sleep(1)

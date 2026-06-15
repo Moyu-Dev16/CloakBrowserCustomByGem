@@ -37,6 +37,7 @@ class App(ctk.CTk):
             logger=self.logger,
             on_status_change=self._on_status_change,
             on_countdown=self._on_countdown,
+            on_bind_success=self._on_bind_success,
         )
 
         # ── 布局：左配置面板 + 右日志面板 ───────────────────
@@ -57,6 +58,7 @@ class App(ctk.CTk):
             on_clear_logs=self._on_clear_logs,
             on_fill_invite=self._on_fill_invite,
             on_read_email=self._on_read_email,
+            on_create_apikey=self._on_create_apikey,
         )
         self.log_panel.pack(
             side='right',
@@ -176,15 +178,25 @@ class App(ctk.CTk):
         self.log_panel.update_log_info()
 
     def _on_fill_invite(self, code: str):
-        """处理填写邀请码按钮点击"""
-        if not code:
-            messagebox.showwarning('输入错误', '请先在底部工具栏输入邀请码。')
-            return
-        self.task_runner.bind_invite_code(code)
+        if self.task_runner.is_running:
+            self.task_runner.bind_invite_code(code)
+        else:
+            self.logger.warning("任务未运行，无法填写邀请码")
 
     def _on_read_email(self):
-        """处理读取邮件按钮点击"""
+        # 即使未运行浏览器，也可以在后台读取邮件（只需网络请求）
+        # 这里为了保持一致，统一塞入任务队列。如果需要独立执行，可修改 TaskRunner 支持空闲状态处理。
         self.task_runner.read_email()
+
+    def _on_create_apikey(self):
+        if self.task_runner.is_running:
+            self.task_runner.create_apikey()
+        else:
+            self.logger.warning("任务未运行，无法创建 API Key")
+
+    def _on_bind_success(self):
+        """当邀请码绑定成功时，从邮箱池中移除使用的邮箱"""
+        self.after(0, self.config_panel.remove_first_email)
 
     # ── 窗口关闭 ─────────────────────────────────────────────
     def _on_close(self):
