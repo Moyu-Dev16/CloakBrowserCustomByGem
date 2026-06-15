@@ -53,40 +53,54 @@ def _get_canvas_image(page: Page, selectors: list) -> np.ndarray:
 def _get_distance(bg_img: np.ndarray, slice_img: np.ndarray) -> int:
     """
     通过 OpenCV 计算缺口 X 轴坐标距离。
-    针对极验3，bg_img 是带缺口的背景，slice_img 是完整的滑块（通常也是同等大小，但滑块在最左侧）。
-    更稳妥的通用办法：基于边缘检测找到背景中突兀的方形缺口。
+    兼容独立图片和“背景与滑块被截取在同一张图”的情况。
     """
-    # 转灰度
     bg_gray = cv2.cvtColor(bg_img, cv2.COLOR_BGR2GRAY)
-    
-    # 极验背景图中的缺口通常有明显的边缘阴影，我们可以通过阈值和边缘检测来寻找
-    blurred = cv2.GaussianBlur(bg_gray, (5, 5), 0)
-    edges = cv2.Canny(blurred, 100, 200)
-    
-    # 也可以利用 fullbg 和 bg 的差值来找，但有时 fullbg 不一定可用。
-    # 这里我们用最经典的模板匹配方法：将 slice_img 裁剪出真实滑块，去匹配 bg_img
-    
-    # 先把 slice_img 转为 RGBA（如果有Alpha通道）或处理它的非透明区域
-    # 因为我们从 canvas 提取的是 png，如果 OpenCV 没有读取 Alpha，需要额外处理。
-    # 但由于通常滑块背景是透明的（黑色），我们先找滑块在 slice_img 里的真实边界：
     slice_gray = cv2.cvtColor(slice_img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(slice_gray, 10, 255, cv2.THRESH_BINARY)
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    if not contours:
-        return 0
+    # 判断是否截取到了同一个包含了背景和滑块的父容器 (两张图完全一样)
+    is_combined_image = False
+    if bg_gray.shape == slice_gray.shape:
+        # 如果尺寸一样，比较一下像素差异
+        diff = cv2.absdiff(bg_gray, slice_gray)
+        if cv2.countNonZero(diff) < 100: # 几乎没有差异
+            is_combined_image = True
+            
+    if is_combined_image:
+        # 滑块一定在图片的左侧 (x < 60)
+        left_strip = bg_gray[:, :60]
+        edges = cv2.Canny(left_strip, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         
-    # 找到最大的轮廓（滑块本体）
-    c = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(c)
-    
-    # 裁剪出真实的滑块模板
-    template = bg_gray[y:y+h, x:x+w] # 极验的 slice canvas 往往本身就在正确 Y 轴！直接用 bg_img 的同等大小去匹配，或者提取 slice 的非零部分
-    template_slice = slice_gray[y:y+h, x:x+w]
-    
+        valid_contours = [c for c in contours if cv2.boundingRect(c)[2] > 20 and cv2.boundingRect(c)[3] > 20]
+        if not valid_contours:
+            return 0
+            
+        c = max(valid_contours, key=cv2.contourArea)
+        sx, sy, sw, sh = cv2.boundingRect(c)
+        
+        # 裁剪出真实的滑块模板
+        template_slice = bg_gray[sy:sy+sh, sx:sx+sw]
+        y, h = sy, sh
+        x, w = sx, sw
+    else:
+        # 原有的独立滑块提取逻辑
+        _, thresh = cv2.threshold(slice_gray, 10, 255, cv2.THRESH_BINARY)
+        contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return 0
+            
+        c = max(contours, key=cv2.contourArea)
+        x, y, w, h = cv2.boundingRect(c)
+        template_slice = slice_gray[y:y+h, x:x+w]
+
     # 用 Canny 边缘做模板匹配，排除颜色干扰
-    bg_edges = cv2.Canny(bg_gray, 100, 200)
-    slice_edges = cv2.Canny(template_slice, 100, 200)
+    bg_edges = cv2.Canny(bg_gray, 50, 150)
+    slice_edges = cv2.Canny(template_slice, 50, 150)
+    
+    # 遮蔽左侧滑块初始位置，防止匹配到自己
+    bg_edges[:, :x+w+10] = 0
     
     result = cv2.matchTemplate(bg_edges, slice_edges, cv2.TM_CCOEFF_NORMED)
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
@@ -187,6 +201,8 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
             err(f"Geetest DOM snippet: {dom_html[:1000]}...")
             return False
             
+        log(f"提取成功，图片尺寸 -> 背景: {bg_img.shape}, 滑块: {slice_img.shape}")
+        
         # 计算距离
         distance = _get_distance(bg_img, slice_img)
         log(f"OpenCV 计算目标缺口距离: {distance}px")
@@ -206,6 +222,13 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
         
         if distance < 10:
             err("缺口识别失败 (图片加载失败或距离异常)，尝试点击刷新按钮...")
+            try:
+                cv2.imwrite("debug_bg.png", bg_img)
+                cv2.imwrite("debug_slice.png", slice_img)
+                err("👉 已经将异常提取的图片保存到软件目录下的 debug_bg.png 和 debug_slice.png，请查看到底截出了什么鬼东西！")
+            except Exception as e:
+                err(f"保存调试图片失败: {e}")
+                
             # 刷新按钮可能有不同类名，兼容多种情况
             try:
                 page.locator(".geetest_refresh_1, .geetest_refresh").first.click(timeout=3000)
