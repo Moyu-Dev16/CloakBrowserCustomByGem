@@ -249,7 +249,11 @@ class TaskRunner:
             self._logger.info("点击下一步...")
             page.click("#rc-tabs-0-panel-register > form > button")
             
-            self._logger.success("自动注册表单填写完成，等待用户操作...")
+            # 尝试接管极验验证码
+            from core.captcha import solve_geetest_slider
+            solve_geetest_slider(page, self._logger)
+            
+            self._logger.success("自动注册表单填写并检测完成，等待后续验证逻辑...")
             
         except Exception as e:
             self._logger.error(f"自动化操作失败: {e}", exc_info=True)
