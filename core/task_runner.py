@@ -166,27 +166,45 @@ class TaskRunner:
             page.click("#rc-tabs-0-tab-register", timeout=15000)
             time.sleep(1)
             
-            self._logger.info("选择国家...")
+            self._logger.info("点击选择国家...")
             page.click("#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item")
             time.sleep(1)
             
             self._logger.info("输入国家: 美国...")
-            page.fill("body > div:nth-child(17) > div > div > div > div > div.mi-region-field__search > div > div > div > input", "美国")
-            page.press("body > div:nth-child(17) > div > div > div > div > div.mi-region-field__search > div > div > div > input", "Enter")
+            # 使用更稳定的类名选择器替代易变的 nth-child
+            search_input_selector = ".mi-region-field__search input"
+            page.fill(search_input_selector, "美国")
+            time.sleep(0.5)
+            page.press(search_input_selector, "Enter")
             time.sleep(1)
             
-            if config.target_email and config.target_password:
+            if config.target_email:
+                import string, random
+                # 生成 8-16位随机密码（数字+字母组合）
+                pw_len = random.randint(8, 16)
+                chars = string.ascii_letters + string.digits
+                password_list = [random.choice(string.ascii_letters), random.choice(string.digits)]
+                password_list += [random.choice(chars) for _ in range(pw_len - 2)]
+                random.shuffle(password_list)
+                config.target_password = ''.join(password_list)
+
+                self._logger.info(f"👉 当前任务邮箱: {config.target_email}")
+                self._logger.info(f"👉 当前生成密码: {config.target_password}")
+
                 self._logger.info("输入邮箱...")
-                page.fill("#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input", config.target_email)
-                time.sleep(0.5)
+                email_sel = "#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input"
+                page.click(email_sel)
+                page.keyboard.insert_text(config.target_email)
                 
                 self._logger.info("输入密码...")
-                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(3) > div > div.mi-form-field__control > div > input", config.target_password)
-                time.sleep(0.5)
+                pw1_sel = "#rc-tabs-0-panel-register > form > div:nth-child(3) > div > div.mi-form-field__control > div > input"
+                page.click(pw1_sel)
+                page.keyboard.insert_text(config.target_password)
                 
                 self._logger.info("确认密码...")
-                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(4) > div > div.mi-form-field__control > div > input", config.target_password)
-                time.sleep(0.5)
+                pw2_sel = "#rc-tabs-0-panel-register > form > div:nth-child(4) > div > div.mi-form-field__control > div > input"
+                page.click(pw2_sel)
+                page.keyboard.insert_text(config.target_password)
             else:
                 self._logger.warning("未配置邮箱池，跳过账号密码填写。")
             
