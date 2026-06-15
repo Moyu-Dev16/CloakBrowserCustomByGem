@@ -102,9 +102,27 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         if not config.sync_proxy_timezone:
             page_kwargs["timezone_id"] = "Asia/Shanghai"
             
-        # 如果不跟随代理地区，强制设置为北京坐标
+        # 如果不跟随代理地区，强制设置为国内随机省市坐标
         if not config.sync_proxy_geolocation:
-            page_kwargs["geolocation"] = {"longitude": 116.4074, "latitude": 39.9042}
+            import random
+            china_cities = [
+                {"longitude": 116.40, "latitude": 39.90}, # 北京
+                {"longitude": 121.47, "latitude": 31.23}, # 上海
+                {"longitude": 113.26, "latitude": 23.13}, # 广州
+                {"longitude": 114.05, "latitude": 22.54}, # 深圳
+                {"longitude": 104.06, "latitude": 30.67}, # 成都
+                {"longitude": 120.15, "latitude": 30.28}, # 杭州
+                {"longitude": 114.30, "latitude": 30.59}, # 武汉
+                {"longitude": 108.93, "latitude": 34.26}, # 西安
+                {"longitude": 118.79, "latitude": 32.06}, # 南京
+                {"longitude": 106.55, "latitude": 29.56}, # 重庆
+            ]
+            city_geo = random.choice(china_cities)
+            # 添加微小的随机偏移，模拟真实位置波动 (约百米级)
+            city_geo["longitude"] += random.uniform(-0.01, 0.01)
+            city_geo["latitude"] += random.uniform(-0.01, 0.01)
+            
+            page_kwargs["geolocation"] = city_geo
             page_kwargs["permissions"] = ["geolocation"]
 
         # 创建新页面
