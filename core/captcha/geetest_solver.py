@@ -89,36 +89,36 @@ def __ease_out_expo(sep):
 
 def _perform_bionic_drag(page: Page, start_x: float, start_y: float, distance: int):
     """
-    根据给定的缓动函数 (ease-out-expo) 执行物理鼠标拖动。
-    极大程度还原极验开源破解项目的轨迹特征。
+    真·丝滑分段拖动：完全抛弃 Python 内部的 for 循环与 timeout 等待，
+    纯粹利用 Playwright 的 steps 参数在浏览器内核层进行插值渲染。
+    完全杜绝跨进程 WebSocket 通信造成的时钟跳变和卡顿现象。
     """
     page.mouse.down()
     page.wait_for_timeout(random.randint(100, 200)) # 按下后停顿
     
-    count = 10 + int(distance / 2) # 切割片段数
-    _x = 0
-    _y = 0
+    # 稍微超过目标距离，模拟人类滑过头
+    overshoot = random.randint(10, 20)
+    target_x = start_x + distance
+    max_x = target_x + overshoot
     
-    for i in range(count):
-        # 根据 ease_out_expo 计算当前应当到达的 X 坐标
-        x = round(__ease_out_expo(i / count) * distance)
-        
-        if x == _x:
-            continue
-            
-        current_x = start_x + x
-        # 极微弱的 Y 轴抖动
-        current_y = start_y + _y + random.choice([-1, 0, 1]) * random.random()
-        
-        page.mouse.move(current_x, current_y)
-        # 使用 playwright 自带的 timeout 替代 python 的 time.sleep，规避 windows 下的时间精度跳变
-        page.wait_for_timeout(random.randint(10, 20))
-        
-        _x = x
-        
-    # 确保终点绝对吻合
-    page.mouse.move(start_x + distance, start_y)
-    page.wait_for_timeout(random.randint(300, 500)) # 松开前表现出锁定的稳定特征
+    # 第一段：急速起步（跨越约 60% 的距离，仅用 15 步插值，平均速度极快）
+    x1 = start_x + distance * random.uniform(0.6, 0.7)
+    y1 = start_y + random.choice([-2, -1, 1, 2])
+    page.mouse.move(x1, y1, steps=random.randint(15, 20))
+    
+    # 第二段：减速滑过头（跨越剩余距离 + overshoot，用 30 步插值，速度降为中等）
+    y2 = start_y + random.choice([-1, 0, 1])
+    page.mouse.move(max_x, y2, steps=random.randint(25, 35))
+    
+    # 第三段：缓慢回拨（往回走 overshoot 距离，用 25 步插值，速度极慢！）
+    y3 = start_y + random.choice([-1, 0, 1])
+    page.mouse.move(target_x, y3, steps=random.randint(20, 30))
+    
+    # 第四段：终点蠕动锁定（几乎不产生位移，用 10 步插值，营造迟疑感）
+    page.mouse.move(target_x, start_y, steps=random.randint(10, 15))
+    
+    # 锁定后的最后停顿确认
+    page.wait_for_timeout(random.randint(300, 500)) 
     
     page.mouse.up()
 
