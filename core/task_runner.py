@@ -189,27 +189,46 @@ class TaskRunner:
             
             # 预定义主流国家列表 (混合中英文以应对不同语言环境)
             country_list = [
-                "美国"
-            ] #   "日本", "韩国", "德国", "法国", "英国", "加拿大",
+                "美国", "日本", "韩国", "德国", "法国", "英国", "加拿大",
+            ]
             import random
             random_country = random.choice(country_list)
             self._logger.info(f"随机选择了国家: {random_country}")
             
-            search_input_selector = ".mi-region-field__search input"
-            # 等待搜索框真正可见
-            page.wait_for_selector(search_input_selector, state="visible", timeout=15000)
+            search_input_selector = ".mi-region-field__search input, input[placeholder*='国家'], input[placeholder*='Country']"
             
-            page.click(search_input_selector)
-            # 使用 type 并带有延迟，能更好地触发前端 React 的 onChange 状态更新
-            page.locator(search_input_selector).type(random_country, delay=100)
+            # 因为 React 刚渲染完毕时，绑定的点击事件可能还没生效，点击经常被忽略，所以加入重试机制
+            for attempt in range(3):
+                self._logger.info("点击选择国家...")
+                page.click(country_box_sel, force=True) # 加上 force 强制点击
+                try:
+                    # 尝试等待搜索框出现
+                    page.wait_for_selector(search_input_selector, state="visible", timeout=3000)
+                    break # 出现了就跳出循环
+                except:
+                    self._logger.info("下拉框未弹出，正在重试点击...")
+            else:
+                # 兜底：如果重试3次还是没找到，可能选择器有变，进行一次放宽条件的模糊查找
+                self._logger.info("尝试最后的模糊查找...")
+                page.wait_for_selector("input[type='text']", state="visible", timeout=10000)
+            
+            # 使用更宽泛的 locator 匹配输入框并聚焦
+            search_input = page.locator(search_input_selector).first
+            if not search_input.is_visible():
+                search_input = page.locator("input[type='text']").last
+                
+            search_input.click()
+            search_input.fill("") # 先清空
+            # 使用 type 模拟真实人工敲击，但把 delay 降低到 30ms 加快速度
+            search_input.type(random_country, delay=30)
             
             # 稍微等待下拉列表过滤渲染
             time.sleep(1)
             page.keyboard.press("Enter")
             
-            # 等待国家下拉框消失，代表选择完成，替代硬性的 time.sleep(2)
+            # 等待国家下拉框消失，代表选择完成
             try:
-                page.wait_for_selector(".ant-select-dropdown", state="hidden", timeout=5000)
+                page.wait_for_selector(".ant-select-dropdown", state="hidden", timeout=3000)
             except:
                 pass # 忽略错误，如果瞬间消失捕捉不到也没关系
             
