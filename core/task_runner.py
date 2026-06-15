@@ -174,11 +174,13 @@ class TaskRunner:
             
             self._logger.info("点击注册选项卡...")
             page.click("#rc-tabs-0-tab-register", timeout=15000)
-            time.sleep(1)
+            
+            country_box_sel = "#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item"
+            # 等待国家选择框出现，替代固定等待
+            page.wait_for_selector(country_box_sel, state="visible", timeout=5000)
             
             self._logger.info("点击选择国家...")
-            page.click("#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item")
-            #time.sleep(1)  # 给予下拉菜单展开动画充足的缓冲时间
+            page.click(country_box_sel)
             
             search_input_selector = ".mi-region-field__search input"
             # 等待搜索框真正可见，防止动画期间输入失败
@@ -193,8 +195,15 @@ class TaskRunner:
             # time.sleep(1)
             page.keyboard.press("Enter")
             
-            # 关键：按下回车后，整个表单的状态可能发生重渲染，必须等待其彻底稳定，否则紧接着输入的邮箱/密码会丢失焦点或无法触发按键绑定
-            time.sleep(2)
+            # 等待国家下拉框消失，代表选择完成，替代硬性的 time.sleep(2)
+            try:
+                page.wait_for_selector(".ant-select-dropdown", state="hidden", timeout=5000)
+            except:
+                pass # 忽略错误，如果瞬间消失捕捉不到也没关系
+            
+            email_sel = "#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input"
+            # 等待邮箱输入框变成可操作状态
+            page.wait_for_selector(email_sel, state="visible", timeout=5000)
             
             if config.target_email:
                 import string, random
@@ -223,9 +232,7 @@ class TaskRunner:
                     page.evaluate(js_code)
 
                 self._logger.info("输入邮箱...")
-                email_sel = "#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input"
-                # page.click(email_sel)
-                # page.keyboard.insert_text(config.target_email)
+                # 之前已经在上面定义了 email_sel，并且等它 visible 了
                 js_assign(email_sel, config.target_email)
                 
                 self._logger.info("输入密码...")
@@ -244,9 +251,9 @@ class TaskRunner:
             
             self._logger.info("点击同意协议...")
             page.click("#rc-tabs-0-panel-register > form > div.mi-accept-terms > label > span.ant-checkbox > input", force=True)
-            time.sleep(0.5)
             
-            self._logger.info("点击下一步...")
+            self._logger.info("等待并点击下一步...")
+            # Playwright 原生的 click 会自带 actionability 检查（等待可见、可用、未被遮挡），替代 fixed sleep
             page.click("#rc-tabs-0-panel-register > form > button")
             
             # 尝试接管极验验证码
