@@ -38,6 +38,7 @@ class App(ctk.CTk):
             on_status_change=self._on_status_change,
             on_countdown=self._on_countdown,
             on_bind_success=self._on_bind_success,
+            on_task_fail=self._on_task_fail,
         )
 
         # ── 布局：左配置面板 + 右日志面板 ───────────────────
@@ -96,6 +97,8 @@ class App(ctk.CTk):
         if not invite_code:
             if not messagebox.askyesno('未填写邀请码', '邀请码未填写，是否继续？'):
                 return
+                
+        config.invite_code = invite_code
 
         # 直接启动任务，代理验证由 TaskRunner 内部处理
         self._do_start(config)
@@ -218,6 +221,18 @@ class App(ctk.CTk):
     def _on_bind_success(self):
         """当邀请码绑定成功时，从邮箱池中移除使用的邮箱"""
         self.after(0, self.config_panel.remove_first_email)
+
+    def _on_task_fail(self):
+        """当任务失败时，从邮箱池中移除使用的邮箱，并追加到失败记录中"""
+        def update_ui():
+            email_text = '' if getattr(self.config_panel, '_email_is_placeholder', True) else self.config_panel.email_pool_text.get('1.0', 'end').strip()
+            if email_text:
+                lines = [l.strip() for l in email_text.split('\n') if l.strip()]
+                if lines:
+                    failed_line = lines[0]
+                    self.config_panel.append_failed_email(failed_line)
+                    self.config_panel.remove_first_email()
+        self.after(0, update_ui)
 
     # ── 窗口关闭 ─────────────────────────────────────────────
     def _on_close(self):

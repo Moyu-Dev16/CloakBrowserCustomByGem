@@ -96,37 +96,42 @@ class ConfigPanel(ctk.CTkFrame):
     # ── UI 构建 ──────────────────────────────────────────────
     def _build_ui(self):
         """构建面板内所有控件"""
-        # 用可滚动帧包裹，以便内容过多时滚动
-        self._scroll = ctk.CTkScrollableFrame(
-            self,
-            fg_color='transparent',
-            scrollbar_button_color=COLORS['border'],
-            scrollbar_button_hover_color=COLORS['hover'],
-        )
-        self._scroll.pack(fill='both', expand=True, padx=SPACING['pad_sm'], pady=SPACING['pad_sm'])
-
-        container = self._scroll
-
+        
         # ── 标题 ────────────────────────────────────────────
-        self._build_header(container)
+        self._build_header(self)
 
-        # ── 隐身模式 ────────────────────────────────────────
-        self._build_stealth_section(container)
+        # ── 选项卡容器 ──────────────────────────────────────
+        self.tabview = ctk.CTkTabview(
+            self,
+            segmented_button_selected_color=COLORS['accent_primary'],
+            segmented_button_selected_hover_color=COLORS['accent_secondary']
+        )
+        self.tabview.pack(fill='both', expand=True, padx=SPACING['pad_sm'], pady=SPACING['pad_sm'])
 
-        # ── 代理设置 ────────────────────────────────────────
-        self._build_proxy_section(container)
+        self.tab_base = self.tabview.add("基础设置")
+        self.tab_proxy = self.tabview.add("代理配置")
+        self.tab_pool = self.tabview.add("账号配置")
 
-        # ── 邮箱池设置 ──────────────────────────────────────
-        self._build_email_pool_section(container)
+        # ── 基础设置页 ──────────────────────────────────────
+        scroll_base = ctk.CTkScrollableFrame(self.tab_base, fg_color='transparent')
+        scroll_base.pack(fill='both', expand=True)
+        self._build_stealth_section(scroll_base)
+        self._build_target_section(scroll_base)
+        self._build_timeout_section(scroll_base)
 
-        # ── 目标地址 ────────────────────────────────────────
-        self._build_target_section(container)
+        # ── 代理配置页 ──────────────────────────────────────
+        scroll_proxy = ctk.CTkScrollableFrame(self.tab_proxy, fg_color='transparent')
+        scroll_proxy.pack(fill='both', expand=True)
+        self._build_proxy_section(scroll_proxy)
 
-        # ── 任务超时 ────────────────────────────────────────
-        self._build_timeout_section(container)
+        # ── 账号池配置页 ────────────────────────────────────
+        scroll_pool = ctk.CTkScrollableFrame(self.tab_pool, fg_color='transparent')
+        scroll_pool.pack(fill='both', expand=True)
+        self._build_email_pool_section(scroll_pool)
+        self._build_failed_pool_section(scroll_pool)
 
-        # ── 操作按钮 ────────────────────────────────────────
-        self._build_action_button(container)
+        # ── 操作按钮 (全局底部) ──────────────────────────────
+        self._build_action_button(self)
 
     # ── 各段构建方法 ─────────────────────────────────────────
     def _section_label(self, parent, text: str):
@@ -299,6 +304,31 @@ class ConfigPanel(ctk.CTkFrame):
         self._email_is_placeholder = True
         self.email_pool_text.bind('<FocusIn>', self._email_focus_in)
         self.email_pool_text.bind('<FocusOut>', self._email_focus_out)
+
+    def _build_failed_pool_section(self, parent):
+        """失败邮箱池展示区"""
+        self._section_label(parent, '❌  失败邮箱记录')
+
+        hint = ctk.CTkLabel(
+            parent,
+            text='自动化途中失败的邮箱将被放置在此处以备排查',
+            font=FONTS['small'],
+            text_color=COLORS['text_dim'],
+            anchor='w',
+        )
+        hint.pack(fill='x', pady=(0, SPACING['pad_xs']))
+
+        self.failed_pool_text = ctk.CTkTextbox(
+            parent,
+            height=100,
+            font=FONTS['mono_small'],
+            fg_color=COLORS['bg_input'],
+            text_color=COLORS['error'],
+            border_width=1,
+            border_color=COLORS['border'],
+            corner_radius=8,
+        )
+        self.failed_pool_text.pack(fill='x', pady=SPACING['pad_sm'])
 
     def _build_target_section(self, parent):
         """目标地址输入"""
@@ -507,6 +537,11 @@ class ConfigPanel(ctk.CTkFrame):
                 else:
                     self._email_focus_out()
                 self._save_settings_dict()
+
+    def append_failed_email(self, email_line: str):
+        """将失败的邮箱追加到失败记录框中"""
+        self.failed_pool_text.insert('end', email_line + '\n')
+        self.failed_pool_text.see('end')
 
     def set_running_state(self, is_running: bool):
         """

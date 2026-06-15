@@ -53,6 +53,7 @@ class TaskRunner:
         on_status_change: Callable = None,
         on_countdown: Callable = None,
         on_bind_success: Callable = None,
+        on_task_fail: Callable = None,
     ):
         """
         初始化任务运行器。
@@ -65,11 +66,13 @@ class TaskRunner:
             on_countdown: 倒计时回调，签名: callback(remaining_seconds: int)
                 在 running 状态下每秒调用一次
             on_bind_success: 绑定成功时的回调，用于清理已使用的邮箱
+            on_task_fail: 自动化流程失败时的回调，用于将邮箱移入失败池
         """
         self._logger = logger
         self._on_status_change = on_status_change
         self._on_countdown = on_countdown
         self._on_bind_success = on_bind_success
+        self._on_task_fail = on_task_fail
 
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
@@ -258,19 +261,36 @@ class TaskRunner:
             
             # 尝试接管极验验证码
             from core.captcha import solve_geetest_slider
-            solve_geetest_slider(page, self._logger)
             
+            geetest_retry = 0
+            max_geetest_retry = 3
+            
+            solve_geetest_slider(page, self._logger)
             self._logger.success("极验探测结束，等待页面状态响应...")
             
             # 轮询检查后续状态 (等待极验飞一会或者等待网络响应)
-            for _ in range(30):
+            for _ in range(40):
                 # 检查是否出现邮箱错误（被注册或格式错误）
                 if page.locator("#mi-form-error-email").is_visible():
                     self._logger.error("该邮箱已注册或无效！")
-                    # self.stop()  # 退出此任务关闭浏览器 (根据要求先注释掉)
-                    # return
-                    break
+                    self._handle_automation_failure()
+                    return
                     
+                # 检查极验是否失败需要重试
+                error_panel = page.locator("div.geetest_panel_error_content")
+                if error_panel.is_visible():
+                    geetest_retry += 1
+                    if geetest_retry > max_geetest_retry:
+                        self._logger.error("极验滑块重试次数达到上限，放弃！")
+                        self._handle_automation_failure()
+                        return
+                    self._logger.warning(f"检测到极验滑动失败，准备第 {geetest_retry} 次重试...")
+                    error_panel.click(force=True)
+                    time.sleep(2) # 等待新图加载
+                    solve_geetest_slider(page, self._logger)
+                    self._logger.success("极验重试探测结束，等待响应...")
+                    continue
+
                 # 检查是否成功跳转到“输入邮件验证码”的页面
                 # 使用更加稳固的 class 组合选择器，而不是依赖可能被框架伪装的 placeholder 属性
                 verify_input = page.locator('.mi-ticket-field input').first
@@ -295,7 +315,20 @@ class TaskRunner:
                     
                     if found_code:
                         self._logger.success(f"自动填入验证码: {found_code}")
-                        verify_input.fill(found_code)
+                        
+                        def js_assign_local(selector, value):
+                            js_code = f"""() => {{
+                                const el = document.querySelector('{selector}');
+                                if (el) {{
+                                    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+                                    setter.call(el, '{value}');
+                                    el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                }}
+                            }}"""
+                            page.evaluate(js_code)
+                            
+                        js_assign_local('.mi-ticket-field input', found_code)
                         time.sleep(0.5)
                         self._logger.info("点击提交验证码...")
                         page.click("#rc-tabs-0-panel-register > form > button")
@@ -320,9 +353,15 @@ class TaskRunner:
                                     confirm_btn.click()
                                     time.sleep(1) # 等待弹窗消失
                             
-                            # 获取主界面的邀请码（如果没有，可以用默认或者空）
-                            # 触发 _do_create_apikey 进行全自动收尾
+                            # 填写邀请码并触发 _do_create_apikey 进行全自动收尾
                             self._logger.info("开始执行全自动 API Key 创建闭环...")
+                            
+                            # 1. 填写邀请码 (如果有)
+                            if config.invite_code:
+                                self._do_bind_invite(config.invite_code)
+                                time.sleep(1)
+                                
+                            # 2. 创建 API Key
                             self._do_create_apikey()
                             
                             # 剔除已使用的邮箱 (触发回调刷新界面)
@@ -333,23 +372,32 @@ class TaskRunner:
                             self._logger.success("本轮账号自动化流程已彻底完结！准备执行下一轮任务。")
                             
                             # ======= 核心循环：关闭当前浏览器并停止本线程，通知 GUI 开启下一个任务 =======
-                            # 这里我们采取的策略是抛出一个特定的异常或者直接停止当前 TaskRunner
-                            # 并在 GUI 监听到停止后自动从池子取出下一个邮箱启动。
-                            # 为了简化，我们可以先停掉当前 TaskRunner
                             self.stop()
                             return
                             
                         except Exception as e:
                             self._logger.error(f"后续流程执行失败或超时未跳转: {e}")
+                            self._handle_automation_failure()
+                            return
                             
                     else:
                         self._logger.error("多次尝试后未能读取到验证码邮件！")
+                        self._handle_automation_failure()
+                        return
                     break
                     
                 time.sleep(1)
             
         except Exception as e:
             self._logger.error(f"自动化操作失败: {e}", exc_info=True)
+            self._handle_automation_failure()
+
+    def _handle_automation_failure(self):
+        """处理自动化流程中的失败情况，将其移入失败池并终止当前任务"""
+        if self._on_task_fail:
+            self._logger.info("正在将当前失败的邮箱移入失败池...")
+            self._on_task_fail()
+        self.stop()
 
     def _do_bind_invite(self, code: str):
         try:

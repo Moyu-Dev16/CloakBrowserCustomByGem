@@ -29,6 +29,7 @@ class BrowserConfig:
     target_password: Optional[str] = None
     email_client_id: Optional[str] = None
     email_refresh_token: Optional[str] = None
+    invite_code: Optional[str] = None
 
 
 def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
