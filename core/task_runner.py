@@ -178,12 +178,11 @@ class TaskRunner:
             self._logger.info("点击注册选项卡...")
             page.click("#rc-tabs-0-tab-register", timeout=15000)
             
-            country_box_sel = "#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item"
+            # 使用更精简、容错率更高的选择器，抓取注册面板下的第一个 Ant Design 选择框
+            country_box_sel = "#rc-tabs-0-panel-register .ant-select-selector"
+            
             # 等待国家选择框出现，针对使用代理网速较慢的情况放宽超时限制
             page.wait_for_selector(country_box_sel, state="visible", timeout=30000)
-            
-            self._logger.info("点击选择国家...")
-            page.click(country_box_sel)
             
             self._logger.info("正在随机抽取国家并搜索...")
             
@@ -198,19 +197,29 @@ class TaskRunner:
             search_input_selector = ".mi-region-field__search input, input[placeholder*='国家'], input[placeholder*='Country']"
             
             # 因为 React 刚渲染完毕时，绑定的点击事件可能还没生效，点击经常被忽略，所以加入重试机制
-            for attempt in range(3):
+            for attempt in range(4):
                 self._logger.info("点击选择国家...")
-                page.click(country_box_sel, force=True) # 加上 force 强制点击
+                try:
+                    # 优先用 locator 原生点击，并且指定点击正中心
+                    page.locator(country_box_sel).first.click(force=True, delay=50)
+                except:
+                    pass
+                
                 try:
                     # 尝试等待搜索框出现
                     page.wait_for_selector(search_input_selector, state="visible", timeout=3000)
                     break # 出现了就跳出循环
                 except:
-                    self._logger.info("下拉框未弹出，正在重试点击...")
+                    self._logger.info("下拉框未弹出，尝试使用 JS 强制触发...")
+                    try:
+                        # 兜底：如果 Playwright 点击无效，使用 JS 强行点击底层元素
+                        page.evaluate("() => { const el = document.querySelector('#rc-tabs-0-panel-register .ant-select-selector'); if(el) el.click(); }")
+                    except:
+                        pass
             else:
-                # 兜底：如果重试3次还是没找到，可能选择器有变，进行一次放宽条件的模糊查找
+                # 兜底：如果重试还是没找到，可能选择器有变，进行一次放宽条件的模糊查找
                 self._logger.info("尝试最后的模糊查找...")
-                page.wait_for_selector("input[type='text']", state="visible", timeout=10000)
+                page.wait_for_selector("input[type='text']", state="visible", timeout=8000)
             
             # 使用更宽泛的 locator 匹配输入框并聚焦
             search_input = page.locator(search_input_selector).first
