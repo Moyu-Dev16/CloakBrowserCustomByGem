@@ -505,7 +505,6 @@ class ConfigPanel(ctk.CTkFrame):
                     self.email_pool_text.insert('1.0', new_text)
                 else:
                     self._email_focus_out() # 变回占位符
-                self._save_settings_dict()
                 
             if valid_lines:
                 parts = valid_lines[0].split('----')
@@ -536,7 +535,6 @@ class ConfigPanel(ctk.CTkFrame):
                     self.email_pool_text.insert('1.0', new_text)
                 else:
                     self._email_focus_out()
-                self._save_settings_dict()
 
     def append_failed_email(self, email_line: str):
         """将失败的邮箱追加到失败记录框中"""
