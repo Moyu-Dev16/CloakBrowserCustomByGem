@@ -177,15 +177,18 @@ class TaskRunner:
             
             if config.target_email and config.target_password:
                 self._logger.info("输入邮箱...")
-                page.fill("#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input", config.target_email)
+                # 使用相对稳定的选择器
+                page.fill("input[type='email'], input[name='email']", config.target_email)
                 time.sleep(0.5)
                 
                 self._logger.info("输入密码...")
-                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(3) > div > div.mi-form-field__control > div > input", config.target_password)
+                # 寻找表单中第一个 password 输入框
+                page.locator("input[type='password']").nth(0).fill(config.target_password)
                 time.sleep(0.5)
                 
                 self._logger.info("确认密码...")
-                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(4) > div > div.mi-form-field__control > div > input", config.target_password)
+                # 寻找表单中第二个 password 输入框
+                page.locator("input[type='password']").nth(1).fill(config.target_password)
                 time.sleep(0.5)
             else:
                 self._logger.warning("未配置邮箱池，跳过账号密码填写。")
