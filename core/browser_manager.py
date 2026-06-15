@@ -33,6 +33,7 @@ class BrowserConfig:
     email_client_id: Optional[str] = None
     email_refresh_token: Optional[str] = None
     invite_code: Optional[str] = None
+    auto_bind_create: bool = True
 
 
 def launch_browser(config: BrowserConfig, logger=None) -> Tuple:

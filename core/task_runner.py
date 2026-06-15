@@ -434,27 +434,37 @@ class TaskRunner:
                                     confirm_btn.click()
                                     time.sleep(1) # 等待弹窗消失
                             
-                            # 填写邀请码并触发 _do_create_apikey 进行全自动收尾
-                            self._logger.info("开始执行全自动 API Key 创建闭环...")
-                            
-                            # 1. 填写邀请码 (如果有)
-                            if config.invite_code:
-                                self._do_bind_invite(config.invite_code)
-                                time.sleep(1)
+                            if config.auto_bind_create:
+                                # 填写邀请码并触发 _do_create_apikey 进行全自动收尾
+                                self._logger.info("开始执行全自动 API Key 创建闭环...")
                                 
-                            # 2. 创建 API Key
-                            self._do_create_apikey()
-                            
-                            # 剔除已使用的邮箱 (触发回调刷新界面)
-                            if self._on_bind_success:
-                                self._logger.info("正在将当前邮箱移出队列...")
-                                self._on_bind_success()
+                                # 1. 填写邀请码 (如果有)
+                                if config.invite_code:
+                                    self._do_bind_invite(config.invite_code)
+                                    time.sleep(1)
+                                    
+                                # 2. 创建 API Key
+                                self._do_create_apikey()
                                 
-                            self._logger.success("本轮账号自动化流程已彻底完结！准备执行下一轮任务。")
-                            
-                            # ======= 核心循环：关闭当前浏览器并停止本线程，通知 GUI 开启下一个任务 =======
-                            self.stop()
-                            return
+                                # 剔除已使用的邮箱 (触发回调刷新界面)
+                                if self._on_bind_success:
+                                    self._logger.info("正在将当前邮箱移出队列...")
+                                    self._on_bind_success()
+                                    
+                                self._logger.success("本轮账号自动化流程已彻底完结！准备执行下一轮任务。")
+                                
+                                # ======= 核心循环：关闭当前浏览器并停止本线程，通知 GUI 开启下一个任务 =======
+                                self.stop()
+                                return
+                            else:
+                                self._logger.success("注册成功！由于关闭了【自动绑定和创建】，自动化流程已暂停。")
+                                self._logger.info("👉 请在打开的浏览器中人工点击“填写”、“创建”进行测试。")
+                                self._logger.info("浏览器将保持打开状态直到你点击软件上的“停止”按钮...")
+                                
+                                # 保持线程存活，从而保持浏览器打开
+                                while self._is_running:
+                                    time.sleep(1)
+                                return
                             
                         except Exception as e:
                             self._logger.error(f"后续流程执行失败或超时未跳转: {e}")

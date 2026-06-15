@@ -64,7 +64,8 @@ class ConfigPanel(ctk.CTkFrame):
             'proxy_api_url': self.api_entry.get().strip(),
             'target_url': self.target_entry.get().strip(),
             'timeout_minutes': self.timeout_var.get(),
-            'email_pool': '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
+            'email_pool': '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip(),
+            'auto_bind_create': self.auto_bind_create_var.get()
         }
 
     def _apply_settings(self):
@@ -74,6 +75,7 @@ class ConfigPanel(ctk.CTkFrame):
         self.sync_locale_var.set(s.get('sync_proxy_locale', False))
         self.sync_timezone_var.set(s.get('sync_proxy_timezone', False))
         self.sync_geolocation_var.set(s.get('sync_proxy_geolocation', False))
+        self.auto_bind_create_var.set(s.get('auto_bind_create', True))
         self.proxy_mode_var.set(s.get('proxy_mode', '无代理'))
         
         if s.get('proxy_pool'):
@@ -245,6 +247,22 @@ class ConfigPanel(ctk.CTkFrame):
             button_hover_color=COLORS['accent_secondary'],
         )
         self.sync_geolocation_switch.pack(side='left')
+
+        row3 = ctk.CTkFrame(parent, fg_color='transparent')
+        row3.pack(fill='x', pady=SPACING['pad_xs'])
+
+        self.auto_bind_create_var = ctk.BooleanVar(value=True)
+        self.auto_bind_create_switch = ctk.CTkSwitch(
+            row3,
+            text='自动“绑定邀请码并创建API Key” (否则请在浏览器手动操作)',
+            variable=self.auto_bind_create_var,
+            font=FONTS['body'],
+            text_color=COLORS['text_secondary'],
+            progress_color=COLORS['accent_primary'],
+            button_color=COLORS['accent_primary'],
+            button_hover_color=COLORS['accent_secondary'],
+        )
+        self.auto_bind_create_switch.pack(side='left', padx=(0, 20))
 
     def _build_proxy_section(self, parent):
         """代理设置：模式选择 + 动态输入区"""
