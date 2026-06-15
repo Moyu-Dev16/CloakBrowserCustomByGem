@@ -59,8 +59,9 @@ class ConfigPanel(ctk.CTkFrame):
             'sync_proxy_timezone': self.sync_timezone_var.get(),
             'sync_proxy_geolocation': self.sync_geolocation_var.get(),
             'proxy_mode': self.proxy_mode_var.get(),
-            'proxy_pool': '' if self._pool_is_placeholder else self.proxy_pool_text.get('1.0', 'end').strip(),
+            'proxy_pool': '' if getattr(self, '_pool_is_placeholder', True) else self.proxy_pool_text.get('1.0', 'end').strip(),
             'rotating_proxy': self.rotating_entry.get().strip(),
+            'proxy_api_url': self.api_entry.get().strip(),
             'target_url': self.target_entry.get().strip(),
             'timeout_minutes': self.timeout_var.get(),
             'email_pool': '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
@@ -74,7 +75,6 @@ class ConfigPanel(ctk.CTkFrame):
         self.sync_timezone_var.set(s.get('sync_proxy_timezone', False))
         self.sync_geolocation_var.set(s.get('sync_proxy_geolocation', False))
         self.proxy_mode_var.set(s.get('proxy_mode', '无代理'))
-        self._on_proxy_mode_change(s.get('proxy_mode', '无代理'))
         
         if s.get('proxy_pool'):
             self.proxy_pool_text.delete('1.0', 'end')
@@ -82,9 +82,16 @@ class ConfigPanel(ctk.CTkFrame):
             self.proxy_pool_text.configure(text_color=COLORS['text_primary'])
             self._pool_is_placeholder = False
             
-        if s.get('rotating_proxy'):
+        if 'rotating_proxy' in self._settings:
             self.rotating_entry.delete(0, 'end')
-            self.rotating_entry.insert(0, s['rotating_proxy'])
+            self.rotating_entry.insert(0, self._settings['rotating_proxy'])
+            
+        if 'proxy_api_url' in self._settings:
+            self.api_entry.delete(0, 'end')
+            self.api_entry.insert(0, self._settings['proxy_api_url'])
+
+        # 应用代理模式，这会刷新动态区域的显示
+        self._on_proxy_mode_change(s.get('proxy_mode', '无代理'))
             
         if s.get('target_url'):
             self.target_entry.delete(0, 'end')
@@ -247,7 +254,7 @@ class ConfigPanel(ctk.CTkFrame):
         self.proxy_mode_var = ctk.StringVar(value='无代理')
         self.proxy_mode_seg = ctk.CTkSegmentedButton(
             parent,
-            values=['无代理', '代理池', '轮转代理'],
+            values=['无代理', '代理池', '轮转代理', 'API提取'],
             variable=self.proxy_mode_var,
             command=self._on_proxy_mode_change,
             font=FONTS['body'],
@@ -319,6 +326,30 @@ class ConfigPanel(ctk.CTkFrame):
             corner_radius=8,
         )
         self.rotating_entry.pack(fill='x')
+
+        # ── API 代理提取输入 ──
+        self._api_frame = ctk.CTkFrame(self._proxy_input_frame, fg_color='transparent')
+
+        hint_api = ctk.CTkLabel(
+            self._api_frame,
+            text='输入提取代理的 API 链接',
+            font=FONTS['small'],
+            text_color=COLORS['text_dim'],
+            anchor='w',
+        )
+        hint_api.pack(fill='x', pady=(0, SPACING['pad_xs']))
+
+        self.api_entry = ctk.CTkEntry(
+            self._api_frame,
+            placeholder_text='http://api.example.com/get?num=1',
+            font=FONTS['mono_small'],
+            fg_color=COLORS['bg_input'],
+            text_color=COLORS['text_primary'],
+            border_width=1,
+            border_color=COLORS['border'],
+            corner_radius=8,
+        )
+        self.api_entry.pack(fill='x')
 
         # 初始状态 - 无代理，不显示任何输入
         self._on_proxy_mode_change('无代理')
@@ -464,11 +495,14 @@ class ConfigPanel(ctk.CTkFrame):
         """切换代理模式时显示/隐藏对应的输入区域"""
         self._proxy_pool_frame.pack_forget()
         self._rotating_frame.pack_forget()
+        self._api_frame.pack_forget()
 
         if mode == '代理池':
             self._proxy_pool_frame.pack(in_=self._proxy_input_frame, fill='x', pady=SPACING['pad_xs'])
         elif mode == '轮转代理':
             self._rotating_frame.pack(in_=self._proxy_input_frame, fill='x', pady=SPACING['pad_xs'])
+        elif mode == 'API提取':
+            self._api_frame.pack(in_=self._proxy_input_frame, fill='x', pady=SPACING['pad_xs'])
 
     def _on_timeout_change(self, value):
         """滑块值变化时更新标签"""
@@ -543,6 +577,9 @@ class ConfigPanel(ctk.CTkFrame):
         elif mode == '轮转代理':
             rotating_url = self.rotating_entry.get().strip()
             proxy = get_proxy('rotating', rotating_proxy=rotating_url) if rotating_url else None
+        elif mode == 'API提取':
+            api_url = self.api_entry.get().strip()
+            proxy = get_proxy('api', api_url=api_url) if api_url else None
 
         email, password, client_id, refresh_token = None, None, None, None
         email_text = '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
@@ -640,6 +677,7 @@ class ConfigPanel(ctk.CTkFrame):
         self.proxy_mode_seg.configure(state=state)
         self.proxy_pool_text.configure(state=state)
         self.rotating_entry.configure(state=state)
+        self.api_entry.configure(state=state)
         self.email_pool_text.configure(state=state)
         self.target_entry.configure(state=state)
         self.timeout_slider.configure(state=state)

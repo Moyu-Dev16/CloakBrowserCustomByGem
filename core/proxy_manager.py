@@ -12,6 +12,7 @@ PROXY_MODES = {
     'none': '无代理',
     'pool': '代理池',
     'rotating': '轮转代理',
+    'api': 'API提取',
 }
 
 # 用于验证代理连通性的测试URL
@@ -114,7 +115,8 @@ def parse_proxy_list(text: str) -> List[str]:
 def get_proxy(
     mode: str,
     proxy_list: List[str] = None,
-    rotating_proxy: str = None
+    rotating_proxy: str = None,
+    api_url: str = None
 ) -> Optional[str]:
     """
     根据代理模式获取代理URL。
@@ -124,8 +126,10 @@ def get_proxy(
             - 'none': 不使用代理
             - 'pool': 从代理池中随机选取一个
             - 'rotating': 使用固定的轮转代理地址
+            - 'api': 从提供的 API 地址获取代理
         proxy_list: 代理池列表（mode='pool' 时需要）
         rotating_proxy: 轮转代理地址（mode='rotating' 时需要）
+        api_url: 代理 API 地址（mode='api' 时需要）
 
     Returns:
         代理URL字符串，或 None（不使用代理时）
@@ -142,6 +146,24 @@ def get_proxy(
         if not rotating_proxy or not rotating_proxy.strip():
             return None
         return rotating_proxy.strip()
+
+    elif mode == 'api':
+        if not api_url or not api_url.strip():
+            return None
+        try:
+            resp = requests.get(api_url.strip(), timeout=10)
+            if resp.status_code == 200:
+                proxy_text = resp.text.strip()
+                # 假设 API 返回的格式是 ip:port，或者有多行选第一行
+                first_line = proxy_text.splitlines()[0].strip()
+                if first_line:
+                    # 如果没有协议头，默认加上 http://
+                    if '://' not in first_line:
+                        first_line = f"http://{first_line}"
+                    return first_line
+        except Exception:
+            pass
+        return None
 
     else:
         # 未知模式，不使用代理
