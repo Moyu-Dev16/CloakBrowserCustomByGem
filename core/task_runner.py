@@ -185,18 +185,30 @@ class TaskRunner:
             self._logger.info("点击选择国家...")
             page.click(country_box_sel)
             
-            search_input_selector = ".mi-region-field__search input"
-            # 等待搜索框真正可见，防止动画期间输入失败
-            page.wait_for_selector(search_input_selector, state="visible", timeout=1000)
+            self._logger.info("正在随机选择国家...")
             
-            self._logger.info("输入国家: 美国...")
-            page.click(search_input_selector)
-            # 使用 type 并带有延迟，能更好地触发前端 React 的 onChange 状态更新
-            page.locator(search_input_selector).type("美国", delay=100)
+            # 确保下拉列表已经展示，并等待国家名字元素出现
+            page.wait_for_selector(".ant-select-dropdown", state="visible", timeout=5000)
+            page.wait_for_selector(".mi-region-field__name", state="visible", timeout=5000)
             
-            # # 给下拉列表时间完全过滤出结果
-            # time.sleep(1)
-            page.keyboard.press("Enter")
+            import random
+            
+            # 获取当前虚拟列表中渲染出来的所有国家选项
+            regions = page.locator(".mi-region-field__name")
+            count = regions.count()
+            
+            if count > 0:
+                random_index = random.randint(0, count - 1)
+                random_region = regions.nth(random_index)
+                
+                region_name = random_region.inner_text()
+                self._logger.info(f"随机选择了国家: {region_name}")
+                
+                random_region.scroll_into_view_if_needed()
+                random_region.click()
+            else:
+                self._logger.warning("未找到任何国家选项，跳过选择")
+                page.keyboard.press("Escape")
             
             # 等待国家下拉框消失，代表选择完成，替代硬性的 time.sleep(2)
             try:
