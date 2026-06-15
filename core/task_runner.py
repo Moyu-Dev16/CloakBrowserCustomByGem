@@ -178,6 +178,7 @@ class TaskRunner:
             
             self._logger.info("点击选择国家...")
             page.click("#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item")
+            time.sleep(1)  # 给予下拉菜单展开动画充足的缓冲时间
             
             search_input_selector = ".mi-region-field__search input"
             # 等待搜索框真正可见，防止动画期间输入失败
@@ -185,11 +186,15 @@ class TaskRunner:
             
             self._logger.info("输入国家: 美国...")
             page.click(search_input_selector)
-            page.keyboard.insert_text("美国")
-            # 给下拉列表一点点时间过滤出结果
-            time.sleep(0.5)
-            page.keyboard.press("Enter")
+            # 使用 type 并带有延迟，能更好地触发前端 React 的 onChange 状态更新
+            page.locator(search_input_selector).type("美国", delay=100)
+            
+            # 给下拉列表时间完全过滤出结果
             time.sleep(1)
+            page.keyboard.press("Enter")
+            
+            # 关键：按下回车后，整个表单的状态可能发生重渲染，必须等待其彻底稳定，否则紧接着输入的邮箱/密码会丢失焦点或无法触发按键绑定
+            time.sleep(2)
             
             if config.target_email:
                 import string, random
