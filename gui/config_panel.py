@@ -648,7 +648,8 @@ class ConfigPanel(ctk.CTkFrame):
             target_email=email,
             target_password=password,
             email_client_id=client_id,
-            email_refresh_token=refresh_token
+            email_refresh_token=refresh_token,
+            auto_bind_create=self.auto_bind_create_var.get()
         )
 
     def remove_first_email(self):
