@@ -7,22 +7,48 @@ import cv2
 from playwright.sync_api import Page
 import logging
 
-def _get_canvas_image(page: Page, class_name: str) -> np.ndarray:
-    """提取画布内容的 base64 并转换为 OpenCV 图像 (BGR)"""
-    script = f"""
-    () => {{
-        const canvas = document.querySelector('{class_name}');
-        if (!canvas) return null;
-        return canvas.toDataURL('image/png').substring(22);
-    }}
-    """
-    b64_data = page.evaluate(script)
-    if not b64_data:
-        return None
-    img_data = base64.b64decode(b64_data)
-    nparr = np.frombuffer(img_data, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    return img
+def _get_canvas_image(page: Page, selectors: list) -> np.ndarray:
+    """尝试多个选择器，提取元素的截图并转换为 OpenCV 图像 (BGR)"""
+    for sel in selectors:
+        loc = page.locator(sel)
+        if loc.count() > 0 and loc.first.is_visible():
+            try:
+                img_data = loc.first.screenshot(type="png", omit_background=True)
+                nparr = np.frombuffer(img_data, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_UNCHANGED) # 包含 Alpha 通道
+                # 如果是带 Alpha 通道的，转换为 BGR，并将透明区域填黑（极验 slice 是这样的）
+                if img is not None and img.shape[-1] == 4:
+                    # 分离 Alpha
+                    alpha = img[:, :, 3]
+                    bgr = img[:, :, :3]
+                    # 透明背景转黑
+                    bgr[alpha == 0] = (0, 0, 0)
+                    img = bgr
+                return img
+            except Exception as e:
+                print(f"提取 {sel} 截图失败: {e}")
+                
+    # 如果截图失败，尝试原来的 canvas evaluate 方法
+    for sel in selectors:
+        script = f"""
+        () => {{
+            const canvas = document.querySelector('{sel}');
+            if (!canvas || !canvas.toDataURL) return null;
+            return canvas.toDataURL('image/png').substring(22);
+        }}
+        """
+        try:
+            b64_data = page.evaluate(script)
+            if b64_data:
+                img_data = base64.b64decode(b64_data)
+                nparr = np.frombuffer(img_data, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is not None:
+                    return img
+        except Exception:
+            pass
+            
+    return None
 
 def _get_distance(bg_img: np.ndarray, slice_img: np.ndarray) -> int:
     """
@@ -140,12 +166,17 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
     time.sleep(1) # 等待画布渲染
     
     try:
-        # 获取图像
-        bg_img = _get_canvas_image(page, ".geetest_canvas_bg")
-        slice_img = _get_canvas_image(page, ".geetest_canvas_slice")
+        # 获取图像（使用多重备用选择器）
+        bg_selectors = [".geetest_canvas_bg", ".geetest_bg", ".geetest_item_bg"]
+        slice_selectors = [".geetest_canvas_slice", ".geetest_slice_bg", ".geetest_slice"]
+        
+        bg_img = _get_canvas_image(page, bg_selectors)
+        slice_img = _get_canvas_image(page, slice_selectors)
         
         if bg_img is None or slice_img is None:
-            err("无法获取极验 Canvas 图像！")
+            err("无法获取极验 Canvas 图像！极验类名可能已变更，正在导出 DOM 结构以供诊断...")
+            dom_html = page.evaluate("() => { const el = document.querySelector('.geetest_panel, .geetest_window'); return el ? el.innerHTML : 'Not Found'; }")
+            err(f"Geetest DOM snippet: {dom_html[:1000]}...")
             return False
             
         # 计算距离
