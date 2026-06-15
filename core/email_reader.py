@@ -71,31 +71,30 @@ def read_latest_verification_code(email: str, client_id: str, refresh_token: str
             return folders
 
         messages = []
+        import datetime
+        # 获取 5 分钟前的 UTC 时间戳，符合 ISO 8601 格式
+        time_limit = (datetime.datetime.utcnow() - datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        
         folders = fetch_graph_mail_folders(access_token)
         for folder in folders:
             folder_id = folder.get("id")
             if not folder_id: continue
-            # 过滤发件人并排序
+            # 过滤发件人并排序，加入5分钟时间限制
             params = {
-                "$filter": "from/emailAddress/address eq 'noreply@notice.xiaomi.com'",
+                "$filter": f"from/emailAddress/address eq 'noreply@notice.xiaomi.com' and receivedDateTime ge {time_limit}",
                 "$orderby": "receivedDateTime desc",
                 "$top": 1,
                 "$select": "subject,bodyPreview,body,receivedDateTime"
             }
             try:
-                payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params={"$top": 5, "$select": "subject,from,receivedDateTime,bodyPreview,body"})
-                for m in payload.get("value", []):
-                    sender = m.get('from', {}).get('emailAddress', {}).get('address', '')
-                    if logger:
-                        logger.info(f"发现邮件: {sender} | {m.get('subject')}")
-                    if sender == 'noreply@notice.xiaomi.com' or 'xiaomi.com' in sender:
-                        messages.append(m)
+                payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params=params)
+                messages.extend(payload.get("value", []))
             except Exception:
                 continue
 
         if not messages:
             if logger:
-                logger.warning("所有文件夹中均没有收到小米的验证邮件")
+                logger.warning("在最近 5 分钟内没有收到小米的验证邮件")
             return "没有邮件"
             
         # 按照 receivedDateTime 降序排序，取最新的一封
