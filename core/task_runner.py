@@ -461,9 +461,8 @@ class TaskRunner:
                                 self._logger.info("👉 请在打开的浏览器中人工点击“填写”、“创建”进行测试。")
                                 self._logger.info("浏览器将保持打开状态直到你点击软件上的“停止”按钮...")
                                 
-                                # 保持线程存活，从而保持浏览器打开
-                                while not self._stop_event.is_set():
-                                    time.sleep(1)
+                                # 直接返回，将控制权交还给 _run 的常驻倒计时与队列检查循环，
+                                # 从而让 GUI 发送的 action 能被执行！
                                 return
                             
                         except Exception as e:
