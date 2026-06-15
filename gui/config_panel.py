@@ -514,7 +514,7 @@ class ConfigPanel(ctk.CTkFrame):
                 self._on_stop()
         else:
             if callable(self._on_start):
-                self._on_start(self.get_config())
+                self._on_start()
                 
     def _handle_test_env(self):
         """触发环境测试事件"""
