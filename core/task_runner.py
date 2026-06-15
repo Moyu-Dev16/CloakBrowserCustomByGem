@@ -462,7 +462,7 @@ class TaskRunner:
                                 self._logger.info("浏览器将保持打开状态直到你点击软件上的“停止”按钮...")
                                 
                                 # 保持线程存活，从而保持浏览器打开
-                                while self._is_running:
+                                while not self._stop_event.is_set():
                                     time.sleep(1)
                                 return
                             
