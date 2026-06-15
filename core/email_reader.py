@@ -1,13 +1,21 @@
 import re
 import requests
 
+import html
+
+def strip_html(text: str) -> str:
+    cleaned = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", str(text or ""))
+    cleaned = re.sub(r"(?s)<[^>]+>", " ", cleaned)
+    return re.sub(r"\s+", " ", html.unescape(cleaned)).strip()
+
 def get_access_token(client_id: str, refresh_token: str) -> str:
     """使用 refresh_token 向 Microsoft OAuth2 端点换取 access_token"""
-    url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
+    url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
     data = {
         "client_id": client_id,
         "refresh_token": refresh_token,
-        "grant_type": "refresh_token"
+        "grant_type": "refresh_token",
+        "scope": "offline_access User.Read Mail.Read"
     }
     
     resp = requests.post(url, data=data, timeout=15)
@@ -36,37 +44,67 @@ def read_latest_verification_code(email: str, client_id: str, refresh_token: str
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json"
         }
-        # 筛选条件：发件人为 noreply@notice.xiaomi.com，按收件时间降序，只取1条
-        endpoint = "https://graph.microsoft.com/v1.0/me/messages"
-        params = {
-            "$filter": "from/emailAddress/address eq 'noreply@notice.xiaomi.com'",
-            "$orderby": "receivedDateTime desc",
-            "$top": 1,
-            "$select": "subject,bodyPreview,body"
-        }
-        
-        resp = requests.get(endpoint, headers=headers, params=params, timeout=15)
-        resp.raise_for_status()
-        messages = resp.json().get('value', [])
-        
+        # 使用更稳健的遍历文件夹抓取方式，防止验证码落入垃圾邮件(Junk)未被查出
+        def graph_get(access_token: str, url: str, params: dict = None) -> dict:
+            resp = requests.get(url, params=params, headers={"Authorization": f"Bearer {access_token}"}, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+
+        def fetch_graph_mail_folders(access_token: str) -> list:
+            folders = []
+            def walk(url: str):
+                next_url = url
+                while next_url:
+                    payload = graph_get(access_token, next_url, params={"$top": "100", "$select": "id"})
+                    for folder in payload.get("value", []):
+                        folders.append(folder)
+                        folder_id = folder.get("id")
+                        if folder_id:
+                            walk(f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/childFolders")
+                    next_url = payload.get("@odata.nextLink")
+            walk("https://graph.microsoft.com/v1.0/me/mailFolders")
+            return folders
+
+        messages = []
+        folders = fetch_graph_mail_folders(access_token)
+        for folder in folders:
+            folder_id = folder.get("id")
+            if not folder_id: continue
+            # 过滤发件人并排序
+            params = {
+                "$filter": "from/emailAddress/address eq 'noreply@notice.xiaomi.com'",
+                "$orderby": "receivedDateTime desc",
+                "$top": 1,
+                "$select": "subject,bodyPreview,body,receivedDateTime"
+            }
+            try:
+                payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params=params)
+                messages.extend(payload.get("value", []))
+            except Exception:
+                continue
+
         if not messages:
             if logger:
-                logger.warning("没有邮件")
+                logger.warning("所有文件夹中均没有收到小米的验证邮件")
             return "没有邮件"
             
+        # 按照 receivedDateTime 降序排序，取最新的一封
+        messages.sort(key=lambda x: str(x.get("receivedDateTime") or ""), reverse=True)
         msg = messages[0]
-        content = msg.get('body', {}).get('content', '') + msg.get('bodyPreview', '')
+        raw_body = msg.get('body', {}).get('content', '')
+        content = strip_html(raw_body) + " " + msg.get('bodyPreview', '')
         
         # 提取 6位数字验证码
         match = re.search(r'\b\d{6}\b', content)
         if match:
             code = match.group()
             if logger:
-                logger.success(f"验证码：{code}")
+                logger.success(f"成功提取验证码：{code}")
             return f"验证码：{code}"
         else:
             if logger:
                 logger.warning("最新邮件中未找到6位数字验证码")
+                logger.info(f"邮件内容预览: {content[:200]}")
             return "未找到验证码"
             
     except Exception as e:
