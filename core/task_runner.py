@@ -238,8 +238,20 @@ class TaskRunner:
 
     def _do_bind_invite(self, code: str):
         try:
-            # 固定 ph
-            api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+            import urllib.parse
+            
+            # 动态获取 api-platform_ph
+            api_platform_ph = ""
+            cookies = self._page.context.cookies()
+            for cookie in cookies:
+                if cookie['name'] == 'api-platform_ph':
+                    api_platform_ph = urllib.parse.quote(cookie['value'], safe="")
+                    break
+            
+            if not api_platform_ph:
+                self._logger.warning("未在 Cookie 中找到 api-platform_ph，将使用上次的固定值尝试")
+                api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+                
             url = f"https://platform.xiaomimimo.com/api/v1/invitation/bind?api-platform_ph={api_platform_ph}"
             
             self._logger.info(f"正在发送邀请码绑定请求: {code}")
