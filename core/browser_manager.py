@@ -46,15 +46,14 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
     browser = None
     page = None
 
-    try:
-        if logger:
-            logger.info(f"正在启动 CloakBrowser...")
-            logger.info(f"目标URL: {config.target_url}")
-            if config.proxy:
-                logger.info(f"使用代理: {config.proxy}")
-            else:
-                logger.info("未使用代理（直连模式）")
-            logger.info(f"隐身模式: {'开启' if config.stealth_mode else '关闭'}")
+    if logger:
+        logger.info(f"正在启动 CloakBrowser...")
+        logger.info(f"目标URL: {config.target_url}")
+        if config.proxy:
+            logger.info(f"使用代理: {config.proxy}")
+        else:
+            logger.info("未使用代理（直连模式）")
+        logger.info(f"隐身模式: {'开启' if config.stealth_mode else '关闭'}")
 
     try:
         from cloakbrowser import launch
