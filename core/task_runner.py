@@ -286,8 +286,8 @@ class TaskRunner:
                     self._handle_automation_failure()
                     return
                     
-                # 检查是否出现 Google reCAPTCHA
-                if page.locator('iframe[src*="recaptcha"]').is_visible() or page.locator('iframe[title*="reCAPTCHA"]').is_visible():
+                # 检查是否出现 Google reCAPTCHA (需使用 .first 防止 strict mode 抛错，因为 Google 会同时挂载两个 iframe)
+                if page.locator('iframe[src*="recaptcha"]').first.is_visible() or page.locator('iframe[title*="reCAPTCHA"]').first.is_visible():
                     if not self._recaptcha_warned:
                         self._logger.warning("🚨 触发高风控：检测到 Google reCAPTCHA (人机身份验证)！")
                         self._logger.warning("👉 请立即在浏览器上手动完成拼图/选图验证。程序将暂停等待你操作...")
