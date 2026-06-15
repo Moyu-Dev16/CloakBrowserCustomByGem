@@ -11,14 +11,19 @@ def strip_html(text: str) -> str:
 def get_access_token(client_id: str, refresh_token: str) -> str:
     """使用 refresh_token 向 Microsoft OAuth2 端点换取 access_token"""
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
+    # Outlook Management Local APP 的全局 Secret
+    client_secret = "6Xr8Q~RAjun4jdToFAR7uB_GKXcL0sRw0MNa2cNP"
     data = {
         "client_id": client_id,
+        "client_secret": client_secret,
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
         "scope": "offline_access User.Read Mail.Read"
     }
     
     resp = requests.post(url, data=data, timeout=15)
+    if not resp.ok:
+        print("TOKEN ERROR:", resp.text)
     resp.raise_for_status()
     return resp.json().get('access_token')
 
@@ -78,8 +83,13 @@ def read_latest_verification_code(email: str, client_id: str, refresh_token: str
                 "$select": "subject,bodyPreview,body,receivedDateTime"
             }
             try:
-                payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params=params)
-                messages.extend(payload.get("value", []))
+                payload = graph_get(access_token, f"https://graph.microsoft.com/v1.0/me/mailFolders/{folder_id}/messages", params={"$top": 5, "$select": "subject,from,receivedDateTime,bodyPreview,body"})
+                for m in payload.get("value", []):
+                    sender = m.get('from', {}).get('emailAddress', {}).get('address', '')
+                    if logger:
+                        logger.info(f"发现邮件: {sender} | {m.get('subject')}")
+                    if sender == 'noreply@notice.xiaomi.com' or 'xiaomi.com' in sender:
+                        messages.append(m)
             except Exception:
                 continue
 

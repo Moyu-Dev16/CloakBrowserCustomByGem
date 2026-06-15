@@ -245,7 +245,10 @@ class TaskRunner:
             cookies = self._page.context.cookies()
             for cookie in cookies:
                 if cookie['name'] == 'api-platform_ph':
-                    api_platform_ph = urllib.parse.quote(cookie['value'], safe="")
+                    val = cookie['value']
+                    if val.startswith('"') and val.endswith('"'):
+                        val = val[1:-1]
+                    api_platform_ph = urllib.parse.quote(val, safe="")
                     break
             
             if not api_platform_ph:
@@ -259,8 +262,12 @@ class TaskRunner:
             resp = self._page.context.request.post(
                 url,
                 headers={
-                    "Referer": "https://platform.xiaomimimo.com/console/usage",
-                    "Content-Type": "application/json"
+                    "origin": "https://platform.xiaomimimo.com",
+                    "referer": "https://platform.xiaomimimo.com/console/api-keys",
+                    "x-timezone": "Asia/Shanghai",
+                    "content-type": "application/json",
+                    "accept": "*/*",
+                    "accept-language": "zh"
                 },
                 data={"inviteCode": code}
             )
