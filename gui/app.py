@@ -55,6 +55,8 @@ class App(ctk.CTk):
         self.log_panel = LogPanel(
             self,
             on_clear_logs=self._on_clear_logs,
+            on_fill_invite=self._on_fill_invite,
+            on_read_email=self._on_read_email,
         )
         self.log_panel.pack(
             side='right',
@@ -172,6 +174,17 @@ class App(ctk.CTk):
 
         # 刷新底部统计信息
         self.log_panel.update_log_info()
+
+    def _on_fill_invite(self, code: str):
+        """处理填写邀请码按钮点击"""
+        if not code:
+            messagebox.showwarning('输入错误', '请先在底部工具栏输入邀请码。')
+            return
+        self.task_runner.bind_invite_code(code)
+
+    def _on_read_email(self):
+        """处理读取邮件按钮点击"""
+        self.task_runner.read_email()
 
     # ── 窗口关闭 ─────────────────────────────────────────────
     def _on_close(self):

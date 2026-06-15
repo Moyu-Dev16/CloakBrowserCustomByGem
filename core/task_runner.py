@@ -13,6 +13,7 @@
 """
 import threading
 import time
+import queue
 from typing import Optional, Callable
 
 from core.browser_manager import BrowserConfig, launch_browser, close_browser
@@ -70,6 +71,9 @@ class TaskRunner:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._browser = None
+        self._page = None
+        self._current_config = None
+        self._action_queue = queue.Queue()
         self._status = self.STATUS_IDLE
 
     @property
@@ -138,6 +142,93 @@ class TaskRunner:
         self._logger.info("收到停止请求，正在停止任务...")
         self._stop_event.set()
 
+    def bind_invite_code(self, code: str):
+        """将绑定邀请码任务推入队列"""
+        if not self.is_running:
+            self._logger.error("请先启动任务，再填写邀请码。")
+            return
+        self._action_queue.put(('bind_invite', (code,)))
+
+    def read_email(self):
+        """将读取邮件任务推入队列"""
+        if not self.is_running:
+            self._logger.error("请先启动任务，再读取邮件。")
+            return
+        self._action_queue.put(('read_email', ()))
+
+    def _execute_automation(self, page, config: BrowserConfig):
+        """执行页面自动化操作"""
+        try:
+            self._logger.info("等待页面加载...")
+            page.wait_for_load_state("networkidle", timeout=60000)
+            
+            self._logger.info("点击注册选项卡...")
+            page.click("#rc-tabs-0-tab-register", timeout=15000)
+            time.sleep(1)
+            
+            self._logger.info("选择国家...")
+            page.click("#rc-tabs-0-panel-register > form > div.mi-select-field.mi-select-field--with-label.mi-form-field.mi-form-field--fullwidth.mi-form-field--bordered > div > div > div > div > span.ant-select-selection-item")
+            time.sleep(1)
+            
+            self._logger.info("输入国家: 美国...")
+            page.fill("body > div:nth-child(17) > div > div > div > div > div.mi-region-field__search > div > div > div > input", "美国")
+            page.press("body > div:nth-child(17) > div > div > div > div > div.mi-region-field__search > div > div > div > input", "Enter")
+            time.sleep(1)
+            
+            if config.target_email and config.target_password:
+                self._logger.info("输入邮箱...")
+                page.fill("#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input", config.target_email)
+                time.sleep(0.5)
+                
+                self._logger.info("输入密码...")
+                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(3) > div > div.mi-form-field__control > div > input", config.target_password)
+                time.sleep(0.5)
+                
+                self._logger.info("确认密码...")
+                page.fill("#rc-tabs-0-panel-register > form > div:nth-child(4) > div > div.mi-form-field__control > div > input", config.target_password)
+                time.sleep(0.5)
+            else:
+                self._logger.warning("未配置邮箱池，跳过账号密码填写。")
+            
+            self._logger.info("点击同意协议...")
+            page.click("#rc-tabs-0-panel-register > form > div.mi-accept-terms > label > span.ant-checkbox > input", force=True)
+            time.sleep(0.5)
+            
+            self._logger.info("点击下一步...")
+            page.click("#rc-tabs-0-panel-register > form > button")
+            
+            self._logger.success("自动注册表单填写完成，等待用户操作...")
+            
+        except Exception as e:
+            self._logger.error(f"自动化操作失败: {e}", exc_info=True)
+
+    def _do_bind_invite(self, code: str):
+        try:
+            # 固定 ph
+            api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+            url = f"https://platform.xiaomimimo.com/api/v1/invitation/bind?api-platform_ph={api_platform_ph}"
+            
+            self._logger.info(f"正在发送邀请码绑定请求: {code}")
+            
+            resp = self._page.context.request.post(
+                url,
+                headers={
+                    "Referer": "https://platform.xiaomimimo.com/console/usage",
+                    "Content-Type": "application/json"
+                },
+                data={"inviteCode": code}
+            )
+            
+            body = resp.text()
+            self._logger.success(f"绑定请求响应: {resp.status} {body}")
+        except Exception as e:
+            self._logger.error(f"绑定邀请码失败: {e}", exc_info=True)
+
+    def _do_read_email(self):
+        from core.email_reader import read_latest_verification_code
+        cfg = self._current_config
+        read_latest_verification_code(cfg.target_email, cfg.email_client_id, cfg.email_refresh_token, self._logger)
+
     def _run(self, config: BrowserConfig):
         """
         内部工作方法：在线程中执行的实际任务逻辑。
@@ -184,6 +275,11 @@ class TaskRunner:
                 return
 
             self._browser = browser
+            self._page = page
+            self._current_config = config
+            
+            # 自动化操作
+            self._execute_automation(self._page, self._current_config)
 
             # 检查是否收到停止信号
             if self._stop_event.is_set():
@@ -228,6 +324,14 @@ class TaskRunner:
                     close_browser(self._browser, self._logger)
                     self._browser = None
                     return
+
+                # 检查队列中的操作
+                while not self._action_queue.empty():
+                    action, args = self._action_queue.get()
+                    if action == 'bind_invite':
+                        self._do_bind_invite(*args)
+                    elif action == 'read_email':
+                        self._do_read_email(*args)
 
                 # 每秒检查一次
                 time.sleep(1)

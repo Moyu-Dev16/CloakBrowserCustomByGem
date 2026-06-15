@@ -25,6 +25,10 @@ class BrowserConfig:
     proxy: Optional[str] = None
     stealth_mode: bool = True
     timeout_minutes: int = 30
+    target_email: Optional[str] = None
+    target_password: Optional[str] = None
+    email_client_id: Optional[str] = None
+    email_refresh_token: Optional[str] = None
 
 
 def launch_browser(config: BrowserConfig, logger=None) -> Tuple:

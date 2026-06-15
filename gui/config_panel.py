@@ -6,6 +6,7 @@ import customtkinter as ctk
 from gui.styles import COLORS, FONTS, SPACING
 from core.browser_manager import BrowserConfig
 from core.proxy_manager import parse_proxy_list, get_proxy
+from core.config_store import load_config, save_config
 
 
 class ConfigPanel(ctk.CTkFrame):
@@ -30,7 +31,67 @@ class ConfigPanel(ctk.CTkFrame):
         self._on_stop = on_stop
         self._is_running = False
 
+        # 加载本地配置
+        self._settings = load_config()
+
         self._build_ui()
+        self._apply_settings()
+        
+        # 启动自动保存循环 (每3秒保存一次)
+        self._auto_save_loop()
+
+    def _auto_save_loop(self):
+        """定期将当前配置写入文件"""
+        if not self._is_running:
+            # 运行中为了避免影响，可以考虑不保存或者直接保存，由于界面被禁用，值不会变
+            current = self._get_settings_dict()
+            if current != self._settings:
+                self._settings = current
+                save_config(self._settings)
+        self.after(3000, self._auto_save_loop)
+
+    def _get_settings_dict(self) -> dict:
+        """从 UI 控件获取原始配置字典"""
+        return {
+            'stealth_mode': self.stealth_var.get(),
+            'proxy_mode': self.proxy_mode_var.get(),
+            'proxy_pool': '' if self._pool_is_placeholder else self.proxy_pool_text.get('1.0', 'end').strip(),
+            'rotating_proxy': self.rotating_entry.get().strip(),
+            'target_url': self.target_entry.get().strip(),
+            'timeout_minutes': self.timeout_var.get(),
+            'email_pool': '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
+        }
+
+    def _apply_settings(self):
+        """将加载的设置应用到 UI"""
+        s = self._settings
+        self.stealth_var.set(s.get('stealth_mode', True))
+        self.proxy_mode_var.set(s.get('proxy_mode', '无代理'))
+        self._on_proxy_mode_change(s.get('proxy_mode', '无代理'))
+        
+        if s.get('proxy_pool'):
+            self.proxy_pool_text.delete('1.0', 'end')
+            self.proxy_pool_text.insert('1.0', s['proxy_pool'])
+            self.proxy_pool_text.configure(text_color=COLORS['text_primary'])
+            self._pool_is_placeholder = False
+            
+        if s.get('rotating_proxy'):
+            self.rotating_entry.delete(0, 'end')
+            self.rotating_entry.insert(0, s['rotating_proxy'])
+            
+        if s.get('target_url'):
+            self.target_entry.delete(0, 'end')
+            self.target_entry.insert(0, s['target_url'])
+            
+        timeout = s.get('timeout_minutes', 30)
+        self.timeout_var.set(timeout)
+        self.timeout_label.configure(text=f'{timeout} 分钟')
+        
+        if s.get('email_pool'):
+            self.email_pool_text.delete('1.0', 'end')
+            self.email_pool_text.insert('1.0', s['email_pool'])
+            self.email_pool_text.configure(text_color=COLORS['text_primary'])
+            self._email_is_placeholder = False
 
     # ── UI 构建 ──────────────────────────────────────────────
     def _build_ui(self):
@@ -54,6 +115,9 @@ class ConfigPanel(ctk.CTkFrame):
 
         # ── 代理设置 ────────────────────────────────────────
         self._build_proxy_section(container)
+
+        # ── 邮箱池设置 ──────────────────────────────────────
+        self._build_email_pool_section(container)
 
         # ── 目标地址 ────────────────────────────────────────
         self._build_target_section(container)
@@ -205,6 +269,37 @@ class ConfigPanel(ctk.CTkFrame):
         # 初始状态 - 无代理，不显示任何输入
         self._on_proxy_mode_change('无代理')
 
+    def _build_email_pool_section(self, parent):
+        """Outlook 邮箱池"""
+        self._section_label(parent, '📧  Outlook 邮箱池')
+        
+        hint = ctk.CTkLabel(
+            parent,
+            text='格式: email----pass----client_id----refresh_token',
+            font=FONTS['small'],
+            text_color=COLORS['text_dim'],
+            anchor='w',
+        )
+        hint.pack(fill='x', pady=(0, SPACING['pad_xs']))
+
+        self.email_pool_text = ctk.CTkTextbox(
+            parent,
+            height=100,
+            font=FONTS['mono_small'],
+            fg_color=COLORS['bg_input'],
+            text_color=COLORS['text_primary'],
+            border_width=1,
+            border_color=COLORS['border'],
+            corner_radius=8,
+        )
+        self.email_pool_text.pack(fill='x')
+        self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----clientid----refreshtoken')
+        self.email_pool_text.configure(text_color=COLORS['text_dim'])
+        
+        self._email_is_placeholder = True
+        self.email_pool_text.bind('<FocusIn>', self._email_focus_in)
+        self.email_pool_text.bind('<FocusOut>', self._email_focus_out)
+
     def _build_target_section(self, parent):
         """目标地址输入"""
         self._section_label(parent, '🎯  目标地址')
@@ -305,6 +400,19 @@ class ConfigPanel(ctk.CTkFrame):
             self.proxy_pool_text.configure(text_color=COLORS['text_dim'])
             self._pool_is_placeholder = True
 
+    def _email_focus_in(self, _event=None):
+        if getattr(self, '_email_is_placeholder', True):
+            self.email_pool_text.delete('1.0', 'end')
+            self.email_pool_text.configure(text_color=COLORS['text_primary'])
+            self._email_is_placeholder = False
+
+    def _email_focus_out(self, _event=None):
+        content = self.email_pool_text.get('1.0', 'end').strip()
+        if not content:
+            self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----clientid----refreshtoken')
+            self.email_pool_text.configure(text_color=COLORS['text_dim'])
+            self._email_is_placeholder = True
+
     def _handle_action(self):
         """按钮点击分发：启动或停止"""
         if self._is_running:
@@ -335,11 +443,24 @@ class ConfigPanel(ctk.CTkFrame):
             rotating_url = self.rotating_entry.get().strip()
             proxy = get_proxy('rotating', rotating_proxy=rotating_url) if rotating_url else None
 
+        email, password, client_id, refresh_token = None, None, None, None
+        email_text = '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
+        if email_text:
+            lines = [l.strip() for l in email_text.split('\n') if l.strip()]
+            if lines:
+                parts = lines[0].split('----')
+                if len(parts) >= 4:
+                    email, password, client_id, refresh_token = parts[0], parts[1], parts[2], parts[3]
+
         return BrowserConfig(
             target_url=self.target_entry.get().strip() or 'https://global.account.xiaomi.com/',
             proxy=proxy,
             stealth_mode=self.stealth_var.get(),
             timeout_minutes=self.timeout_var.get(),
+            target_email=email,
+            target_password=password,
+            email_client_id=client_id,
+            email_refresh_token=refresh_token
         )
 
     def set_running_state(self, is_running: bool):
@@ -367,5 +488,6 @@ class ConfigPanel(ctk.CTkFrame):
         self.proxy_mode_seg.configure(state=state)
         self.proxy_pool_text.configure(state=state)
         self.rotating_entry.configure(state=state)
+        self.email_pool_text.configure(state=state)
         self.target_entry.configure(state=state)
         self.timeout_slider.configure(state=state)

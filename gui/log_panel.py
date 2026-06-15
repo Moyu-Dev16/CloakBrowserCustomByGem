@@ -34,7 +34,7 @@ MAX_LOG_LINES = 200
 class LogPanel(ctk.CTkFrame):
     """右侧日志面板，包含状态栏、日志区域和底部工具栏"""
 
-    def __init__(self, master, on_clear_logs=None, **kwargs):
+    def __init__(self, master, on_clear_logs=None, on_fill_invite=None, on_read_email=None, **kwargs):
         super().__init__(
             master,
             fg_color=COLORS['bg_card'],
@@ -44,6 +44,8 @@ class LogPanel(ctk.CTkFrame):
             **kwargs,
         )
         self._on_clear_logs = on_clear_logs
+        self._on_fill_invite = on_fill_invite
+        self._on_read_email = on_read_email
         self._build_ui()
         self.update_log_info()
 
@@ -117,14 +119,61 @@ class LogPanel(ctk.CTkFrame):
         self._line_count = 0
 
     def _build_toolbar(self):
-        """底部工具栏：清理按钮 + 日志统计"""
+        """底部工具栏：功能按钮 + 清理按钮 + 日志统计"""
         toolbar = ctk.CTkFrame(self, height=36, fg_color='transparent')
         toolbar.pack(fill='x', padx=SPACING['pad_sm'], pady=(0, SPACING['pad_sm']))
 
+        # 邀请码输入
+        self.invite_entry = ctk.CTkEntry(
+            toolbar,
+            placeholder_text='邀请码',
+            font=FONTS['mono_small'],
+            width=100,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS['bg_input'],
+            text_color=COLORS['text_primary'],
+            border_color=COLORS['border']
+        )
+        self.invite_entry.pack(side='left', padx=(0, SPACING['pad_sm']))
+
+        # 填写按钮
+        self.fill_btn = ctk.CTkButton(
+            toolbar,
+            text='填写',
+            font=FONTS['small'],
+            width=60,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS['accent_primary'],
+            hover_color=COLORS['accent_secondary'],
+            command=self._handle_fill_invite,
+        )
+        self.fill_btn.pack(side='left', padx=(0, SPACING['pad_sm']))
+
+        # 读取邮件按钮
+        self.read_email_btn = ctk.CTkButton(
+            toolbar,
+            text='读取邮件',
+            font=FONTS['small'],
+            width=80,
+            height=30,
+            corner_radius=6,
+            fg_color=COLORS['accent_primary'],
+            hover_color=COLORS['accent_secondary'],
+            command=self._handle_read_email,
+        )
+        self.read_email_btn.pack(side='left', padx=(0, SPACING['pad_sm']))
+
+        # 占位推挤
+        spacer = ctk.CTkFrame(toolbar, fg_color='transparent')
+        spacer.pack(side='left', fill='x', expand=True)
+
         self.clear_btn = ctk.CTkButton(
             toolbar,
-            text='🗑  清理日志文件',
+            text='🗑',
             font=FONTS['small'],
+            width=30,
             height=30,
             corner_radius=6,
             fg_color=COLORS['bg_secondary'],
@@ -132,7 +181,7 @@ class LogPanel(ctk.CTkFrame):
             text_color=COLORS['text_secondary'],
             command=self._handle_clear,
         )
-        self.clear_btn.pack(side='left')
+        self.clear_btn.pack(side='right', padx=(SPACING['pad_sm'], 0))
 
         self.log_info_label = ctk.CTkLabel(
             toolbar,
@@ -141,13 +190,22 @@ class LogPanel(ctk.CTkFrame):
             text_color=COLORS['text_dim'],
             anchor='e',
         )
-        self.log_info_label.pack(side='right', padx=SPACING['pad_sm'])
+        self.log_info_label.pack(side='right')
 
     # ── 事件处理 ─────────────────────────────────────────────
     def _handle_clear(self):
         """转发清理日志按钮事件"""
         if self._on_clear_logs:
             self._on_clear_logs()
+
+    def _handle_fill_invite(self):
+        if self._on_fill_invite:
+            code = self.invite_entry.get().strip()
+            self._on_fill_invite(code)
+
+    def _handle_read_email(self):
+        if self._on_read_email:
+            self._on_read_email()
 
     # ── 公共方法 ─────────────────────────────────────────────
     def append_log(self, level: str, message: str):
