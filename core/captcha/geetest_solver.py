@@ -81,40 +81,44 @@ def _get_distance(bg_img: np.ndarray, slice_img: np.ndarray) -> int:
         
     return distance
 
+def __ease_out_expo(sep):
+    if sep == 1:
+        return 1
+    else:
+        return 1 - math.pow(2, -10 * sep)
+
 def _perform_bionic_drag(page: Page, start_x: float, start_y: float, distance: int):
     """
-    使用 Playwright 原生的 steps 参数执行分段平滑拖拽。
-    避免 Python time.sleep 导致的卡顿和极验风控拦截。
-    分为四段：加速、减速超调、回撤、微调稳定。
+    根据给定的缓动函数 (ease-out-expo) 执行物理鼠标拖动。
+    极大程度还原极验开源破解项目的轨迹特征。
     """
-    # 稍微超过目标距离，模拟人类滑过头
-    overshoot = random.randint(10, 20)
-    target_x = start_x + distance
-    max_x = target_x + overshoot
-    
     page.mouse.down()
     page.wait_for_timeout(random.randint(100, 200)) # 按下后停顿
     
-    # 1. 加速段：快速滑到距离的 60%-70%
-    mid_x1 = start_x + distance * random.uniform(0.6, 0.7)
-    mid_y1 = start_y + random.randint(-2, 2)
-    # steps 决定了这中间插入多少个微小的平滑鼠标事件 (无需 Python sleep)
-    page.mouse.move(mid_x1, mid_y1, steps=random.randint(15, 25))
-    page.wait_for_timeout(random.randint(20, 50))
+    count = 10 + int(distance / 2) # 切割片段数
+    _x = 0
+    _y = 0
     
-    # 2. 减速段：慢慢滑过头 (overshoot)
-    mid_y2 = mid_y1 + random.randint(-2, 2)
-    page.mouse.move(max_x, mid_y2, steps=random.randint(25, 40))
-    page.wait_for_timeout(random.randint(100, 150))
-    
-    # 3. 回拨段：慢速拉回到真正的目标点
-    mid_y3 = mid_y2 + random.randint(-1, 1)
-    page.mouse.move(target_x, mid_y3, steps=random.randint(15, 25))
-    page.wait_for_timeout(random.randint(50, 100))
-    
-    # 4. 微调：极其缓慢地锁定位置
-    page.mouse.move(target_x, start_y, steps=random.randint(5, 10))
-    page.wait_for_timeout(random.randint(300, 500)) # 松开前停顿，展示“稳定”特征
+    for i in range(count):
+        # 根据 ease_out_expo 计算当前应当到达的 X 坐标
+        x = round(__ease_out_expo(i / count) * distance)
+        
+        if x == _x:
+            continue
+            
+        current_x = start_x + x
+        # 极微弱的 Y 轴抖动
+        current_y = start_y + _y + random.choice([-1, 0, 1]) * random.random()
+        
+        page.mouse.move(current_x, current_y)
+        # 使用 playwright 自带的 timeout 替代 python 的 time.sleep，规避 windows 下的时间精度跳变
+        page.wait_for_timeout(random.randint(10, 20))
+        
+        _x = x
+        
+    # 确保终点绝对吻合
+    page.mouse.move(start_x + distance, start_y)
+    page.wait_for_timeout(random.randint(300, 500)) # 松开前表现出锁定的稳定特征
     
     page.mouse.up()
 
