@@ -191,9 +191,26 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
         distance = _get_distance(bg_img, slice_img)
         log(f"OpenCV 计算目标缺口距离: {distance}px")
         
+        # 增加一个容错循环：如果是灰块（加载中），distance会由于缺乏边缘特征而很小
+        # 我们多等几秒，看看是不是网络卡顿导致图片还没加载完，而不是立马刷新
+        retry_extract = 0
+        while distance < 10 and retry_extract < 5:
+            log("缺口距离异常，可能是图片还没加载完，等待 1.5 秒后重试提取图像...")
+            time.sleep(1.5)
+            bg_img = _get_canvas_image(page, bg_selectors)
+            slice_img = _get_canvas_image(page, slice_selectors)
+            if bg_img is not None and slice_img is not None:
+                distance = _get_distance(bg_img, slice_img)
+                log(f"重试提取后 OpenCV 计算距离: {distance}px")
+            retry_extract += 1
+        
         if distance < 10:
-            err("缺口识别失败 (距离异常)，尝试刷新...")
-            page.click(".geetest_refresh_1")
+            err("缺口识别失败 (图片加载失败或距离异常)，尝试点击刷新按钮...")
+            # 刷新按钮可能有不同类名，兼容多种情况
+            try:
+                page.locator(".geetest_refresh_1, .geetest_refresh").first.click(timeout=3000)
+            except:
+                pass
             time.sleep(2)
             return solve_geetest_slider(page, logger) # 递归重试
             
