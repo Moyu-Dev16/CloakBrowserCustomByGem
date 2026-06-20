@@ -51,3 +51,15 @@ logs/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Sensitive Configs and Data
+config.ini
+授权邮箱.txt
+成功.txt
+
+# Debug and Test Files
+*debug*.png
+*debug*.html
+*debug*.py
+test_*.py
+scratch/

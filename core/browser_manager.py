@@ -31,6 +31,7 @@ class BrowserConfig:
     target_email: Optional[str] = None
     target_password: Optional[str] = None
     email_client_id: Optional[str] = None
+    email_client_secret: Optional[str] = None
     email_refresh_token: Optional[str] = None
     invite_code: Optional[str] = None
     auto_bind_create: bool = True
@@ -95,36 +96,40 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         # 准备新页面的上下文参数
         page_kwargs = {}
         
-        # 如果不跟随代理（或者没有代理），强制设置为中文
-        if not config.sync_proxy_locale:
-            page_kwargs["locale"] = "zh-CN"
-            
-        # 如果不跟随代理时区，强制设置为北京时间
-        if not config.sync_proxy_timezone:
-            page_kwargs["timezone_id"] = "Asia/Shanghai"
-            
-        # 如果不跟随代理地区，强制设置为国内随机省市坐标
-        if not config.sync_proxy_geolocation:
-            import random
-            china_cities = [
-                {"longitude": 116.40, "latitude": 39.90}, # 北京
-                {"longitude": 121.47, "latitude": 31.23}, # 上海
-                {"longitude": 113.26, "latitude": 23.13}, # 广州
-                {"longitude": 114.05, "latitude": 22.54}, # 深圳
-                {"longitude": 104.06, "latitude": 30.67}, # 成都
-                {"longitude": 120.15, "latitude": 30.28}, # 杭州
-                {"longitude": 114.30, "latitude": 30.59}, # 武汉
-                {"longitude": 108.93, "latitude": 34.26}, # 西安
-                {"longitude": 118.79, "latitude": 32.06}, # 南京
-                {"longitude": 106.55, "latitude": 29.56}, # 重庆
-            ]
-            city_geo = random.choice(china_cities)
-            # 添加微小的随机偏移，模拟真实位置波动 (约百米级)
-            city_geo["longitude"] += random.uniform(-0.01, 0.01)
-            city_geo["latitude"] += random.uniform(-0.01, 0.01)
-            
-            page_kwargs["geolocation"] = city_geo
-            page_kwargs["permissions"] = ["geolocation"]
+        # 为了防止在使用代理时强制设置国内环境导致 IP与指纹严重不匹配(触发风控)，
+        # 我们仅在不使用代理，或者用户明确没有开启跟随代理但当前又没配置代理的情况下，才强制设置为国内。
+        # (即：只要配置了代理，就不强行干预覆盖，以免产生指纹风控)
+        if not config.proxy:
+            # 如果不跟随代理（或者没有代理），强制设置为中文
+            if not config.sync_proxy_locale:
+                page_kwargs["locale"] = "zh-CN"
+                
+            # 如果不跟随代理时区，强制设置为北京时间
+            if not config.sync_proxy_timezone:
+                page_kwargs["timezone_id"] = "Asia/Shanghai"
+                
+            # 如果不跟随代理地区，强制设置为国内随机省市坐标
+            if not config.sync_proxy_geolocation:
+                import random
+                china_cities = [
+                    {"longitude": 116.40, "latitude": 39.90}, # 北京
+                    {"longitude": 121.47, "latitude": 31.23}, # 上海
+                    {"longitude": 113.26, "latitude": 23.13}, # 广州
+                    {"longitude": 114.05, "latitude": 22.54}, # 深圳
+                    {"longitude": 104.06, "latitude": 30.67}, # 成都
+                    {"longitude": 120.15, "latitude": 30.28}, # 杭州
+                    {"longitude": 114.30, "latitude": 30.59}, # 武汉
+                    {"longitude": 108.93, "latitude": 34.26}, # 西安
+                    {"longitude": 118.79, "latitude": 32.06}, # 南京
+                    {"longitude": 106.55, "latitude": 29.56}, # 重庆
+                ]
+                city_geo = random.choice(china_cities)
+                # 添加微小的随机偏移，模拟真实位置波动 (约百米级)
+                city_geo["longitude"] += random.uniform(-0.01, 0.01)
+                city_geo["latitude"] += random.uniform(-0.01, 0.01)
+                
+                page_kwargs["geolocation"] = city_geo
+                page_kwargs["permissions"] = ["geolocation"]
 
         # 创建新页面
         page = browser.new_page(**page_kwargs)

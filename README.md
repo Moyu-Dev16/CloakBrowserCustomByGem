@@ -2,6 +2,12 @@
 
 基于 [CloakBrowser](https://github.com/CloakHQ/CloakBrowser)（Playwright 隐身替代品）构建的自动注册测试工具，配备 CustomTkinter 现代化 GUI。
 
+> [!WARNING]
+> **免责声明**
+> 本项目仅供学习、研究自动化测试与浏览器指纹技术使用。禁止将本项目用于任何非法用途（包括但不限于黑灰产、恶意注册、刷单等违规行为）。因使用本工具造成的任何直接或间接后果，由使用者自行承担，作者不负任何法律责任。
+
+![GUI 预览界面](ui_preview.png)
+
 ## 功能特性
 
 - 🕵️ **隐身模式**：一键开启 CloakBrowser 的隐身特性（人类模拟行为、指纹伪装）

@@ -24,6 +24,7 @@ def load_config() -> dict:
         settings['sync_proxy_timezone'] = sec.getboolean('sync_proxy_timezone', fallback=False)
         settings['sync_proxy_geolocation'] = sec.getboolean('sync_proxy_geolocation', fallback=False)
         settings['auto_bind_create'] = sec.getboolean('auto_bind_create', fallback=True)
+        settings['email_client_secret'] = sec.get('email_client_secret', fallback='')
     else:
         # 默认值
         settings = {
@@ -38,7 +39,8 @@ def load_config() -> dict:
             'sync_proxy_locale': False,
             'sync_proxy_timezone': False,
             'sync_proxy_geolocation': False,
-            'auto_bind_create': True
+            'auto_bind_create': True,
+            'email_client_secret': ''
         }
     return settings
 
@@ -60,6 +62,7 @@ def save_config(settings: dict):
     sec['sync_proxy_timezone'] = str(settings.get('sync_proxy_timezone', False))
     sec['sync_proxy_geolocation'] = str(settings.get('sync_proxy_geolocation', False))
     sec['auto_bind_create'] = str(settings.get('auto_bind_create', True))
+    sec['email_client_secret'] = settings.get('email_client_secret', '')
     
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         config.write(f)

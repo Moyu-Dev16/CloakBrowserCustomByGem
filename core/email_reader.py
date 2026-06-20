@@ -8,11 +8,11 @@ def strip_html(text: str) -> str:
     cleaned = re.sub(r"(?s)<[^>]+>", " ", cleaned)
     return re.sub(r"\s+", " ", html.unescape(cleaned)).strip()
 
-def get_access_token(client_id: str, refresh_token: str) -> str:
+def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> str:
     """使用 refresh_token 向 Microsoft OAuth2 端点换取 access_token"""
+    if not client_secret:
+        raise ValueError("Microsoft OAuth2 Client Secret 缺失，请在配置文件或邮箱池行中配置")
     url = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token"
-    # Outlook Management Local APP 的全局 Secret
-    client_secret = "6Xr8Q~RAjun4jdToFAR7uB_GKXcL0sRw0MNa2cNP"
     data = {
         "client_id": client_id,
         "client_secret": client_secret,
@@ -27,7 +27,7 @@ def get_access_token(client_id: str, refresh_token: str) -> str:
     resp.raise_for_status()
     return resp.json().get('access_token')
 
-def read_latest_verification_code(email: str, client_id: str, refresh_token: str, logger=None) -> str:
+def read_latest_verification_code(email: str, client_id: str, client_secret: str, refresh_token: str, logger=None) -> str:
     """读取最新的由 noreply@notice.xiaomi.com 发送的邮件并提取6位验证码"""
     if not email or not client_id or not refresh_token:
         raise ValueError("邮箱、Client ID 或 Refresh Token 缺失")
@@ -35,7 +35,7 @@ def read_latest_verification_code(email: str, client_id: str, refresh_token: str
     try:
         if logger:
             logger.info("正在获取 Graph API 访问令牌...")
-        access_token = get_access_token(client_id, refresh_token)
+        access_token = get_access_token(client_id, client_secret, refresh_token)
     except Exception as e:
         if logger:
             logger.error(f"获取 Access Token 失败: {e}")

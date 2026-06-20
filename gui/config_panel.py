@@ -53,7 +53,7 @@ class ConfigPanel(ctk.CTkFrame):
 
     def _get_settings_dict(self) -> dict:
         """从 UI 控件获取原始配置字典"""
-        return {
+        res = {
             'stealth_mode': self.stealth_var.get(),
             'sync_proxy_locale': self.sync_locale_var.get(),
             'sync_proxy_timezone': self.sync_timezone_var.get(),
@@ -67,6 +67,11 @@ class ConfigPanel(ctk.CTkFrame):
             'email_pool': '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip(),
             'auto_bind_create': self.auto_bind_create_var.get()
         }
+        # 保留那些不在 GUI 中直接编辑但存在于 _settings 中的配置，防止自动保存时被抹除
+        for k, v in self._settings.items():
+            if k not in res:
+                res[k] = v
+        return res
 
     def _apply_settings(self):
         """将加载的设置应用到 UI"""
@@ -378,7 +383,7 @@ class ConfigPanel(ctk.CTkFrame):
         
         hint = ctk.CTkLabel(
             parent,
-            text='格式: email----pass----client_id----refresh_token',
+            text='格式: email----pass----client_id----refresh_token----[client_secret]',
             font=FONTS['small'],
             text_color=COLORS['text_dim'],
             anchor='w',
@@ -396,7 +401,7 @@ class ConfigPanel(ctk.CTkFrame):
             corner_radius=8,
         )
         self.email_pool_text.pack(fill='x')
-        self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----clientid----refreshtoken')
+        self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----client_id----refresh_token----[client_secret_optional]')
         self.email_pool_text.configure(text_color=COLORS['text_dim'])
         
         self._email_is_placeholder = True
@@ -555,7 +560,7 @@ class ConfigPanel(ctk.CTkFrame):
     def _email_focus_out(self, _event=None):
         content = self.email_pool_text.get('1.0', 'end').strip()
         if not content:
-            self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----clientid----refreshtoken')
+            self.email_pool_text.insert('1.0', 'test@outlook.com----pass123----client_id----refresh_token----[client_secret_optional]')
             self.email_pool_text.configure(text_color=COLORS['text_dim'])
             self._email_is_placeholder = True
 
@@ -599,7 +604,7 @@ class ConfigPanel(ctk.CTkFrame):
             api_url = self.api_entry.get().strip()
             proxy = get_proxy('api', api_url=api_url) if api_url else None
 
-        email, password, client_id, refresh_token = None, None, None, None
+        email, password, client_id, refresh_token, client_secret = None, None, None, None, None
         email_text = '' if getattr(self, '_email_is_placeholder', True) else self.email_pool_text.get('1.0', 'end').strip()
         if email_text:
             lines = [l.strip() for l in email_text.split('\n') if l.strip()]
@@ -635,7 +640,16 @@ class ConfigPanel(ctk.CTkFrame):
             if valid_lines:
                 parts = valid_lines[0].split('----')
                 if len(parts) >= 4:
-                    email, password, client_id, refresh_token = parts[0].strip(), parts[1].strip(), parts[2].strip(), parts[3].strip()
+                    email = parts[0].strip()
+                    password = parts[1].strip()
+                    client_id = parts[2].strip()
+                    refresh_token = parts[3].strip()
+                    if len(parts) >= 5:
+                        client_secret = parts[4].strip()
+
+        # 如果邮箱池行中没有指定 client_secret，则回退到配置文件中全局的 email_client_secret
+        if not client_secret:
+            client_secret = self._settings.get('email_client_secret', '')
 
         return BrowserConfig(
             target_url=self.target_entry.get().strip() or 'https://platform.xiaomimimo.com?ref=',
@@ -648,6 +662,7 @@ class ConfigPanel(ctk.CTkFrame):
             target_email=email,
             target_password=password,
             email_client_id=client_id,
+            email_client_secret=client_secret,
             email_refresh_token=refresh_token,
             auto_bind_create=self.auto_bind_create_var.get()
         )
