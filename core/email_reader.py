@@ -23,7 +23,8 @@ def get_access_token(client_id: str, client_secret: str, refresh_token: str) -> 
     
     resp = requests.post(url, data=data, timeout=15)
     if not resp.ok:
-        print("TOKEN ERROR:", resp.text)
+        import logging
+        logging.getLogger(__name__).error("OAuth2 token exchange failed with status %d", resp.status_code)
     resp.raise_for_status()
     return resp.json().get('access_token')
 
