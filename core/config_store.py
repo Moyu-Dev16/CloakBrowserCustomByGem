@@ -1,29 +1,61 @@
 import os
+import logging
 import configparser
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.ini')
 
+_logger = logging.getLogger(__name__)
+
+
 def load_config() -> dict:
-    """加载配置文件，返回字典形式的配置项"""
+    """加载配置文件，返回字典形式的配置项。配置文件损坏时记录错误并返回默认值。"""
     config = configparser.ConfigParser()
     if os.path.exists(CONFIG_FILE):
-        config.read(CONFIG_FILE, encoding='utf-8')
-    
+        try:
+            config.read(CONFIG_FILE, encoding='utf-8')
+        except (configparser.Error, UnicodeDecodeError) as e:
+            _logger.error(f"配置文件解析失败，将使用默认配置: {type(e).__name__}: {e}")
+            config = configparser.ConfigParser()
+
     settings = {}
     if 'Settings' in config:
         sec = config['Settings']
-        settings['stealth_mode'] = sec.getboolean('stealth_mode', fallback=True)
+        try:
+            settings['stealth_mode'] = sec.getboolean('stealth_mode', fallback=True)
+        except ValueError:
+            _logger.warning("配置项 stealth_mode 值无效，使用默认值 True")
+            settings['stealth_mode'] = True
         settings['proxy_mode'] = sec.get('proxy_mode', fallback='无代理')
         settings['proxy_pool'] = sec.get('proxy_pool', fallback='').replace('|#|', '\n')
         settings['rotating_proxy'] = sec.get('rotating_proxy', fallback='')
         settings['proxy_api_url'] = sec.get('proxy_api_url', fallback='')
         settings['target_url'] = sec.get('target_url', fallback='https://global.account.xiaomi.com/')
-        settings['timeout_minutes'] = sec.getint('timeout_minutes', fallback=30)
+        try:
+            settings['timeout_minutes'] = sec.getint('timeout_minutes', fallback=30)
+        except ValueError:
+            _logger.warning("配置项 timeout_minutes 值无效，使用默认值 30")
+            settings['timeout_minutes'] = 30
         settings['email_pool'] = sec.get('email_pool', fallback='').replace('|#|', '\n')
-        settings['sync_proxy_locale'] = sec.getboolean('sync_proxy_locale', fallback=False)
-        settings['sync_proxy_timezone'] = sec.getboolean('sync_proxy_timezone', fallback=False)
-        settings['sync_proxy_geolocation'] = sec.getboolean('sync_proxy_geolocation', fallback=False)
-        settings['auto_bind_create'] = sec.getboolean('auto_bind_create', fallback=True)
+        try:
+            settings['sync_proxy_locale'] = sec.getboolean('sync_proxy_locale', fallback=False)
+        except ValueError:
+            _logger.warning("配置项 sync_proxy_locale 值无效，使用默认值 False")
+            settings['sync_proxy_locale'] = False
+        try:
+            settings['sync_proxy_timezone'] = sec.getboolean('sync_proxy_timezone', fallback=False)
+        except ValueError:
+            _logger.warning("配置项 sync_proxy_timezone 值无效，使用默认值 False")
+            settings['sync_proxy_timezone'] = False
+        try:
+            settings['sync_proxy_geolocation'] = sec.getboolean('sync_proxy_geolocation', fallback=False)
+        except ValueError:
+            _logger.warning("配置项 sync_proxy_geolocation 值无效，使用默认值 False")
+            settings['sync_proxy_geolocation'] = False
+        try:
+            settings['auto_bind_create'] = sec.getboolean('auto_bind_create', fallback=True)
+        except ValueError:
+            _logger.warning("配置项 auto_bind_create 值无效，使用默认值 True")
+            settings['auto_bind_create'] = True
         settings['email_client_secret'] = sec.get('email_client_secret', fallback='')
     else:
         # 默认值
@@ -45,7 +77,7 @@ def load_config() -> dict:
     return settings
 
 def save_config(settings: dict):
-    """保存配置到文件"""
+    """保存配置到文件。写入失败时记录错误而非崩溃。"""
     config = configparser.ConfigParser()
     config['Settings'] = {}
     sec = config['Settings']
@@ -64,5 +96,8 @@ def save_config(settings: dict):
     sec['auto_bind_create'] = str(settings.get('auto_bind_create', True))
     sec['email_client_secret'] = settings.get('email_client_secret', '')
     
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-        config.write(f)
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            config.write(f)
+    except OSError as e:
+        _logger.error(f"保存配置文件失败: {type(e).__name__}: {e}")

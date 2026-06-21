@@ -121,9 +121,10 @@ class TaskLogger:
         if self._gui_callback:
             try:
                 self._gui_callback(level_name, msg)
-            except Exception:
-                # GUI回调异常不应影响主流程
-                pass
+            except Exception as e:
+                # GUI回调异常不应影响主流程，但记录到文件以便排查
+                import sys
+                print(f"[TaskLogger] GUI回调异常: {type(e).__name__}: {e}", file=sys.stderr)
 
     def info(self, msg: str):
         """记录 INFO 级别日志。"""

@@ -161,8 +161,20 @@ def get_proxy(
                     if '://' not in first_line:
                         first_line = f"http://{first_line}"
                     return first_line
-        except Exception:
-            pass
+            else:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "代理API返回非200状态码: %d, URL: %s", resp.status_code, api_url.strip()
+                )
+        except requests.exceptions.Timeout:
+            import logging
+            logging.getLogger(__name__).warning("代理API请求超时: %s", api_url.strip())
+        except requests.exceptions.ConnectionError as e:
+            import logging
+            logging.getLogger(__name__).warning("代理API连接失败: %s, 错误: %s", api_url.strip(), e)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning("代理API请求异常: %s: %s", type(e).__name__, e)
         return None
 
     else:

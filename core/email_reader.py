@@ -92,7 +92,9 @@ def read_latest_verification_code(email: str, client_id: str, client_secret: str
                     sender = m.get('from', {}).get('emailAddress', {}).get('address', '')
                     if 'xiaomi.com' in sender.lower():
                         messages.append(m)
-            except Exception:
+            except Exception as e:
+                if logger:
+                    logger.warning(f"读取邮件文件夹 {folder_id} 失败: {type(e).__name__}: {e}")
                 continue
 
         if not messages:
