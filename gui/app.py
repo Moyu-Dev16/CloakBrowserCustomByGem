@@ -115,7 +115,8 @@ class App(ctk.CTk):
         self.logger.info('任务已启动')
         self.logger.info(f'目标地址: {config.target_url}')
         self.logger.info(f'隐身模式: {"开启" if config.stealth_mode else "关闭"}')
-        self.logger.info(f'代理: {config.proxy or "无"}')
+        from core.browser_manager import _redact_proxy_url
+        self.logger.info(f'代理: {_redact_proxy_url(config.proxy) if config.proxy else "无"}')
         self.logger.info(f'超时: {config.timeout_minutes} 分钟')
         self.task_runner.start(config)
 

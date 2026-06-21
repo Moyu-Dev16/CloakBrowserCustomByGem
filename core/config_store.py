@@ -66,3 +66,7 @@ def save_config(settings: dict):
     
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
         config.write(f)
+    try:
+        os.chmod(CONFIG_FILE, 0o600)
+    except OSError:
+        pass

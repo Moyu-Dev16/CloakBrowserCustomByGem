@@ -4,8 +4,11 @@
 """
 import random
 import requests
+import urllib3
 from typing import Optional, List, Tuple
 from urllib.parse import urlparse
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 代理模式定义
 PROXY_MODES = {
@@ -49,11 +52,14 @@ def validate_proxy(proxy_url: str, timeout: int = 10) -> Tuple[bool, str]:
         proxies = build_requests_proxies(proxy_url)
 
         # 发送测试请求
+        # verify=False: proxy validation may route through proxies that perform
+        # TLS interception with their own CA.  Acceptable here because this
+        # request only hits a public echo service to confirm connectivity.
         response = requests.get(
             _TEST_URL,
             proxies=proxies,
             timeout=timeout,
-            verify=False,  # 部分代理可能没有有效证书
+            verify=False,
         )
 
         if response.status_code == 200:
@@ -150,8 +156,12 @@ def get_proxy(
     elif mode == 'api':
         if not api_url or not api_url.strip():
             return None
+        cleaned_url = api_url.strip()
+        parsed = urlparse(cleaned_url)
+        if parsed.scheme not in ('http', 'https'):
+            return None
         try:
-            resp = requests.get(api_url.strip(), timeout=10)
+            resp = requests.get(cleaned_url, timeout=10)
             if resp.status_code == 200:
                 proxy_text = resp.text.strip()
                 # 假设 API 返回的格式是 ip:port，或者有多行选第一行

@@ -162,7 +162,7 @@ def _perform_bionic_drag(page: Page, start_x: float, start_y: float, distance: i
     
     page.mouse.up()
 
-def solve_geetest_slider(page: Page, logger=None) -> bool:
+def solve_geetest_slider(page: Page, logger=None, _depth: int = 0) -> bool:
     """
     主函数：自动化探测并破解极验滑块验证码。
     返回 True 表示尝试了破解（成功与否需要外部看页面是否跳转），返回 False 表示未检测到验证码。
@@ -173,8 +173,8 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
     # 等待极验窗口完全稳定
     try:
         page.wait_for_selector(".geetest_window, .geetest_panel", state="visible", timeout=5000)
-    except:
-        return False # 未弹出验证码，直接通过
+    except Exception:
+        return False
         
     log("检测到极验滑块验证码，启动本地视觉引擎并等待加载完成...")
     
@@ -232,10 +232,13 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
             # 刷新按钮可能有不同类名，兼容多种情况
             try:
                 page.locator(".geetest_refresh_1, .geetest_refresh").first.click(timeout=3000)
-            except:
+            except Exception:
                 pass
             time.sleep(2)
-            return solve_geetest_slider(page, logger) # 递归重试
+            if _depth >= 3:
+                err("递归重试达到上限 (3次)，停止极验破解")
+                return False
+            return solve_geetest_slider(page, logger, _depth=_depth + 1)
             
         # 获取网页中的滑块按钮
         slider = page.locator(".geetest_slider_button")

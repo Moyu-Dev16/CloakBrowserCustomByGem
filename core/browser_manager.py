@@ -8,6 +8,30 @@ CloakBrowser 管理器 - 启动/关闭/配置
 """
 from dataclasses import dataclass
 from typing import Optional, Tuple
+from urllib.parse import urlparse, urlunparse
+
+
+def _redact_proxy_url(proxy_url: str) -> str:
+    """Redact credentials from a proxy URL for safe logging."""
+    try:
+        parsed = urlparse(proxy_url)
+        if parsed.username or parsed.password:
+            redacted_netloc = f"***:***@{parsed.hostname}"
+            if parsed.port:
+                redacted_netloc += f":{parsed.port}"
+            return urlunparse(parsed._replace(netloc=redacted_netloc))
+    except Exception:
+        pass
+    return proxy_url
+
+
+def _validate_url_scheme(url: str) -> bool:
+    """Only allow http/https URLs."""
+    try:
+        scheme = urlparse(url).scheme.lower()
+        return scheme in ('http', 'https')
+    except Exception:
+        return False
 
 
 @dataclass
@@ -60,7 +84,7 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
         logger.info(f"正在启动 CloakBrowser...")
         logger.info(f"目标URL: {config.target_url}")
         if config.proxy:
-            logger.info(f"使用代理: {config.proxy}")
+            logger.info(f"使用代理: {_redact_proxy_url(config.proxy)}")
         else:
             logger.info("未使用代理（直连模式）")
         logger.info(f"隐身模式: {'开启' if config.stealth_mode else '关闭'}")
@@ -137,6 +161,12 @@ def launch_browser(config: BrowserConfig, logger=None) -> Tuple:
             logger.info("新页面已创建")
 
         # 导航到目标URL，设置 60 秒超时（轮转代理可能较慢）
+        if not _validate_url_scheme(config.target_url):
+            if logger:
+                logger.error(f"目标URL协议不安全，仅允许 http/https: {config.target_url}")
+            if browser:
+                close_browser(browser, logger)
+            return (None, None)
         page.goto(config.target_url, timeout=60000)
         if logger:
             logger.success(f"已导航到: {config.target_url}")

@@ -386,7 +386,7 @@ class TaskRunner:
                 config.target_password = ''.join(password_list)
 
                 self._logger.info(f"👉 当前任务邮箱: {config.target_email}")
-                self._logger.info(f"👉 当前生成密码: {config.target_password}")
+                self._logger.info("👉 当前生成密码: ******** (已隐藏)")
 
                 self._logger.info("输入邮箱...")
                 self._human_paste(page, email_sel, config.target_email)
@@ -621,8 +621,8 @@ class TaskRunner:
                     break
             
             if not api_platform_ph:
-                self._logger.warning("未在 Cookie 中找到 api-platform_ph，将使用上次的固定值尝试")
-                api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+                self._logger.error("未在 Cookie 中找到 api-platform_ph，无法继续绑定邀请码")
+                return
                 
             url = f"https://platform.xiaomimimo.com/api/v1/invitation/bind?api-platform_ph={api_platform_ph}"
             
@@ -669,8 +669,8 @@ class TaskRunner:
                     break
             
             if not api_platform_ph:
-                self._logger.warning("未在 Cookie 中找到 api-platform_ph，将使用备用值尝试")
-                api_platform_ph = "uXh47o%2BU3j4bRTqwPtgSZg%3D%3D"
+                self._logger.error("未在 Cookie 中找到 api-platform_ph，无法继续创建 API Key")
+                return
                 
             url = f"https://platform.xiaomimimo.com/api/v1/apiKeys?api-platform_ph={api_platform_ph}"
             email = self._current_config.target_email or "UnknownEmail"
@@ -697,8 +697,14 @@ class TaskRunner:
                 # 提取 apiKey 并保存到 成功.txt
                 api_key = resp_json.get("data", {}).get("apiKey", "")
                 if api_key:
-                    with open("成功.txt", "a", encoding="utf-8") as f:
+                    import os
+                    _success_file = "成功.txt"
+                    with open(_success_file, "a", encoding="utf-8") as f:
                         f.write(f"{email}----{self._current_config.target_password}----{api_key}\n")
+                    try:
+                        os.chmod(_success_file, 0o600)
+                    except OSError:
+                        pass
                     self._logger.success(f"已将结果保存到 成功.txt")
                 else:
                     self._logger.warning("未能从响应中提取出 apiKey")
@@ -715,7 +721,8 @@ class TaskRunner:
             # ---- 阶段1: 代理验证 ----
             if config.proxy:
                 self._set_status(self.STATUS_VALIDATING_PROXY)
-                self._logger.info(f"正在验证代理: {config.proxy}")
+                from core.browser_manager import _redact_proxy_url
+                self._logger.info(f"正在验证代理: {_redact_proxy_url(config.proxy)}")
 
                 success, message = validate_proxy(config.proxy)
                 if success:
