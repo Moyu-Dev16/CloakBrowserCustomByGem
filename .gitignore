@@ -62,4 +62,5 @@ config.ini
 *debug*.html
 *debug*.py
 test_*.py
+!tests/test_*.py
 scratch/
