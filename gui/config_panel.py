@@ -611,6 +611,7 @@ class ConfigPanel(ctk.CTkFrame):
             
             # 读取成功列表，剔除已经成功的邮箱
             import os
+            import logging
             success_emails = set()
             if os.path.exists('成功.txt'):
                 try:
@@ -619,8 +620,8 @@ class ConfigPanel(ctk.CTkFrame):
                             parts = line.strip().split('----')
                             if parts:
                                 success_emails.add(parts[0].strip())
-                except Exception:
-                    pass
+                except Exception as e:
+                    logging.getLogger(__name__).warning(f"读取成功记录文件失败: {type(e).__name__}: {e}")
                     
             valid_lines = []
             for line in lines:

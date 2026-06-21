@@ -153,8 +153,8 @@ class App(ctk.CTk):
                 try:
                     # 等待10分钟或直到浏览器被手动关闭
                     page.wait_for_timeout(600000)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self.logger.info(f"测试浏览器等待结束: {type(e).__name__}")
                 self.logger.info("正在关闭测试浏览器...")
                 close_browser(browser, self.logger)
             else:
@@ -162,7 +162,7 @@ class App(ctk.CTk):
                 
             self.after(0, lambda: self.config_panel.set_running_state(False))
             self.after(0, lambda: self.logger.info("环境测试结束"))
-            self.after(0, self.logger.close_session)
+            self.after(0, self.logger.stop_session)
             
         import threading
         threading.Thread(target=test_thread, daemon=True).start()
@@ -214,7 +214,8 @@ class App(ctk.CTk):
         try:
             files = TaskLogger.get_log_files()
             total_size = TaskLogger.get_logs_total_size()
-        except Exception:
+        except Exception as e:
+            self.logger.error(f"读取日志文件信息失败: {type(e).__name__}: {e}")
             files = []
             total_size = '0 B'
 

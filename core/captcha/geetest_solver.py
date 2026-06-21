@@ -45,8 +45,8 @@ def _get_canvas_image(page: Page, selectors: list) -> np.ndarray:
                 img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
                 if img is not None:
                     return img
-        except Exception:
-            pass
+        except Exception as e:
+            logging.getLogger(__name__).debug(f"Canvas evaluate 回退失败 ({sel}): {type(e).__name__}: {e}")
             
     return None
 
@@ -173,7 +173,7 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
     # 等待极验窗口完全稳定
     try:
         page.wait_for_selector(".geetest_window, .geetest_panel", state="visible", timeout=5000)
-    except:
+    except Exception:
         return False # 未弹出验证码，直接通过
         
     log("检测到极验滑块验证码，启动本地视觉引擎并等待加载完成...")
@@ -232,8 +232,8 @@ def solve_geetest_slider(page: Page, logger=None) -> bool:
             # 刷新按钮可能有不同类名，兼容多种情况
             try:
                 page.locator(".geetest_refresh_1, .geetest_refresh").first.click(timeout=3000)
-            except:
-                pass
+            except Exception as e:
+                log(f"点击极验刷新按钮失败: {type(e).__name__}: {e}")
             time.sleep(2)
             return solve_geetest_slider(page, logger) # 递归重试
             

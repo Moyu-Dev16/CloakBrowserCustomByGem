@@ -104,9 +104,9 @@ class TaskRunner:
         if self._on_status_change:
             try:
                 self._on_status_change(status)
-            except Exception:
-                # 回调异常不应影响任务运行
-                pass
+            except Exception as e:
+                # 回调异常不应影响任务运行，但记录以便调试
+                self._logger.warning(f"状态变更回调异常: {type(e).__name__}: {e}")
 
     def start(self, config: BrowserConfig):
         """
@@ -272,8 +272,8 @@ class TaskRunner:
                             el.dispatchEvent(new Event('change', { bubbles: true }));
                         }
                     }""", {"sel": selector, "val": value})
-            except Exception:
-                pass  # 验证失败不影响主流程
+            except Exception as e:
+                self._logger.warning(f"输入验证/兜底失败（不影响主流程）: {type(e).__name__}: {e}")
 
     def _human_type_text(self, page, text, *, min_delay_ms=60, max_delay_ms=200):
         """
@@ -327,8 +327,8 @@ class TaskRunner:
                 self._logger.info("点击选择国家...")
                 try:
                     self._human_click(page, country_box_sel)
-                except Exception:
-                    pass
+                except Exception as e:
+                    self._logger.warning(f"点击国家选择框失败（第{attempt+1}次）: {type(e).__name__}: {e}")
 
                 try:
                     # 尝试等待搜索框出现
@@ -339,8 +339,8 @@ class TaskRunner:
                     try:
                         # 兜底：如果 Playwright 点击无效，使用 JS 强行点击底层元素
                         page.evaluate("() => { const el = document.querySelector('#rc-tabs-0-panel-register .ant-select-selector'); if(el) el.click(); }")
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self._logger.warning(f"JS 强制触发点击也失败: {type(e).__name__}: {e}")
             else:
                 # 兜底：如果重试还是没找到，可能选择器有变，进行一次放宽条件的模糊查找
                 self._logger.info("尝试最后的模糊查找...")
@@ -367,8 +367,8 @@ class TaskRunner:
             # 等待国家下拉框消失，代表选择完成
             try:
                 page.wait_for_selector(".ant-select-dropdown", state="hidden", timeout=3000)
-            except Exception:
-                pass  # 忽略错误，如果瞬间消失捕捉不到也没关系
+            except Exception as e:
+                self._logger.info(f"下拉框消失等待超时（可忽略）: {type(e).__name__}")
 
             # ── 填写邮箱和密码 ──
             email_sel = "#rc-tabs-0-panel-register > form > div._-src-portals-desktop-pages-Register-Email-marginTop20.mi-text-field.mi-text-field--with-label.mi-form-field.mi-form-field--bordered > div > div > div > input"
@@ -480,8 +480,8 @@ class TaskRunner:
                     try:
                         close_btn = page.locator(".geetest_close, .geetest_panel_close").first
                         self._human_click(page, close_btn)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self._logger.info(f"关闭极验面板失败（可忽略）: {type(e).__name__}")
 
                 # 如果极验已经彻底消失，但还是在当前页面（没有跳转到验证码页，Next按钮还在），尝试再次点击下一步
                 if loop_idx and (page.locator('iframe[src*="recaptcha"]').first.is_visible() == False) % 10 == 9:
@@ -489,8 +489,8 @@ class TaskRunner:
                         self._logger.info("页面未跳转，尝试重新点击下一步...")
                         try:
                             self._human_click(page, next_btn_sel)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            self._logger.warning(f"重新点击下一步失败: {type(e).__name__}: {e}")
 
                 # 检查是否成功跳转到"输入邮件验证码"的页面
                 # 使用更加稳固的 class 组合选择器，而不是依赖可能被框架伪装的 placeholder 属性
@@ -771,8 +771,8 @@ class TaskRunner:
                 if self._on_countdown:
                     try:
                         self._on_countdown(remaining)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        self._logger.warning(f"倒计时回调异常: {type(e).__name__}: {e}")
 
                 # 检查超时
                 if elapsed >= timeout_seconds:
